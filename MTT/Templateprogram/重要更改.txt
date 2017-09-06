@@ -1,0 +1,197 @@
+1. 模板程序的返回状态更改为 实际的测试值 有三种返回值
+   -2 表示 手动停止 -1 表示未触发，>0表示 有动作值
+2. 在按下测试键后，将所有的测试结果赋值为-2 表示未测试 -1 表示未触发，
+
+
+2015.2.04
+增加相位测试固定电压、固定电流
+1.format 文件中添加
+ VARIABLE FixVoltage;
+ VARIABLE FixCurrent;
+2.Processsection(char *filename)添加解析
+3.在thread1.cpp   keytest 中添加 
+%f %f 
+增加绝对误差 中的正负误差
+
+2015.2.05
+增加dfdt的稳定性测试
+1.format 中dfdt触发时间结构体中添加 相关变量
+
+typedef struct
+ {
+    bool valid;
+    int  TestType; //测试类型 1 触发时间测试 2 测试dfdt稳定性
+    VARIABLE dfdt; //停止频率
+    VARIABLE stopfreq; //触发时间的停止频率
+    VARIABLE Stability_StartFreq; //稳定性测试 起始频率
+    VARIABLE Stability_EndFreq;   //稳定性测试的终止频率
+    VARIABLE Stability_Duration;  //稳定性测试的持续时间
+    ASSESSORROR assessdfdttriptime;
+    float tripdfdttime;
+ }DFDTTRIPTIMEVARIABLE;
+2. 在 ReadFrequencyVariable函数中的
+ case 8: //滑差闭锁时间 添加
+    
+    else if(memcmp(p1,"TESTTYPE=",9)==0)
+        {
+            p1=p1+9;
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+           sectset.freset.Tripdfdttime.TestType=atoi(Testname);
+        }
+
+        else if(memcmp(p1,"STABILITYSTARTFREQ=",strlen("STABILITYSTARTFREQ="))==0)
+        {
+            p1=p1+strlen("STABILITYSTARTFREQ=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_StartFreq.text,Testname);
+        }
+
+        else if(memcmp(p1,"STABILITYENDFREQ=",strlen("STABILITYENDFREQ="))==0)
+        {
+            p1=p1+strlen("STABILITYENDFREQ=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_EndFreq.text,Testname);
+        }
+        
+        else if(memcmp(p1,"STABILITYDURATION=",strlen("STABILITYDURATION="))==0)
+        {
+            p1=p1+strlen("STABILITYDURATION=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_Duration.text,Testname);
+        }
+        
+
+
+3. 在Writetestfunc 中的
+  if(node->value.freset.valid) //频率中的
+  if(testitem&0x08&&node->value.freset.Tripdfdttime.valid==true) 的
+  添加
+  int TestType=node->value.freset.Tripdfdttime.TestType;
+  sprintf(strbuf,"TESTTYPE=%d",TestType);
+  fprintf(fp,"%s\n",strbuf);
+  if(TestType==1) 
+{
+
+}
+  else
+     {
+      sprintf(strbuf,"STABILITYSTARTFREQ=%s",node->value.freset.Tripdfdttime.Stability_StartFreq.text);
+             fprintf(fp,"%s\n",strbuf);
+             sprintf(strbuf,"STABILITYENDFREQ=%s",node->value.freset.Tripdfdttime.Stability_EndFreq.text);
+             fprintf(fp,"%s\n",strbuf);
+             sprintf(strbuf,"STABILITYDURATION=%s",node->value.freset.Tripdfdttime.Stability_Duration.text);
+             fprintf(fp,"%s\n",strbuf);
+             sprintf(strbuf,"TRIPDFDTTIME=%4.3f",report.frec.dfdttriptime);
+             fprintf(fp,"%s\n",strbuf);
+     }
+
+2.key_deal_test()中添加 
+if(sectset.freset.valid==true&&sectset.freset.done==true) 下面的
+if(FreqVAR.Tripdfdttime.valid==true)
+中添加
+
+         int TestType=FreqVAR.Tripdfdttime.TestType;
+
+             if(TestType==1)
+           {  CaculateVariable(FreqVAR.Tripdfdttime.stopfreq);
+              sprintf(tempfile,"./TemplateDir/Templatedizhou testitem=8 %f %f %d %f",\
+                     FreqVAR.Faultduraion.value,\
+                     FreqVAR.Tripdfdttime.dfdt.value,\
+                     TestType,\
+                     FreqVAR.Tripdfdttime.stopfreq.value);
+
+           }
+           else
+           {
+            CaculateVariable(FreqVAR.Tripdfdttime.Stability_StartFreq);
+            CaculateVariable(FreqVAR.Tripdfdttime.Stability_EndFreq);
+            CaculateVariable(FreqVAR.Tripdfdttime.Stability_Duration);
+            sprintf(tempfile,"./TemplateDir/Templatedizhou testitem=8 %f %f %d %f %f %f",\
+            FreqVAR.Faultduraion.value,\
+            FreqVAR.Tripdfdttime.dfdt.value,\
+            TestType,\
+            FreqVAR.Tripdfdttime.Stability_StartFreq.value,\
+            FreqVAR.Tripdfdttime.Stability_EndFreq.value,\
+            FreqVAR.Tripdfdttime.Stability_Duration.value,\
+            );
+           }
+
+频率稳定性测试: 通过正负误差为-1来探测，否则是触发时间测试
+dfdt稳定性测试：是添加了TestType来区分
+电流、电压、相位 稳定性测试  通过正负误差为-1来探测，
+
+
+2015.02.10
+增加 电压测试中 Vpn Vpp
+ //电压的定值
+ typedef struct{
+    bool valid;
+    bool done;  //是否要做
+    char name[128];
+    int  Vpn_Vpp;
+    VARIABLE Testitem;
+    VARIABLE FaultType;
+    VARIABLE Faultduraion;
+
+    TRIPVALUEVARIABLE TripValue;
+    TRIPTIMEVARIABLE TripTime;
+ }VOLTAGESET;
+
+1.voltageset.cpp 添加相关代码
+
+
+3. Processsection(char *filename)函数中
+else if(sequnence==2&&memcmp(buf,"<TESTITEMBEGIN>",strlen("<TESTITEMBEGIN>"))!=0)
+中添加
+switch(currentfunctype)
+  {
+case 2:
+else if(memcmp(p1,"VPNVPP=",7)==0)
+                {
+                    int i=0;
+                    char Testname[128];
+                    p1=p1+7;
+                    while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+                    {
+                        Testname[i]=*p1;
+                        i++;
+                        p1++;
+                    }
+                    Testname[i]='\0';
+                    sectset.volset.Vpn_Vpp=atoi(Testname);
+                }
+
+
+
+
+
+
+

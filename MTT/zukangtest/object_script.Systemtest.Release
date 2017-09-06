@@ -1,0 +1,14 @@
+INPUT(
+./release\ComplexCaculate.o
+./release\keypads.o
+./release\main.o
+./release\widget.o
+./release\helpdialog.o
+./release\warningdialog.o
+./release\Systestseq.o
+./release\moc_keypads.o
+./release\moc_widget.o
+./release\moc_helpdialog.o
+./release\moc_warningdialog.o
+./release\qrc_myresouce.o
+);

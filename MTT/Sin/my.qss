@@ -1,0 +1,13 @@
+QRadioButton:focus{
+     background-color: rgb(0, 0, 255);/*±³¾°É«*/
+     
+}
+QCheckBox:focus{
+
+     background-color: rgb(0, 0, 255);/*±³¾°É«*/
+}
+QPushButton:focus{
+
+     background-color: rgb(0, 0, 255);/*±³¾°É«*/
+}
+

@@ -1,0 +1,17 @@
+INPUT(
+./debug\Key.o
+./debug\keypads.o
+./debug\main.o
+./debug\Manseq.o
+./debug\manualtest.o
+./debug\Testcom2.o
+./debug\thread1.o
+./debug\helpdialog.o
+./debug\warning.o
+./debug\moc_keypads.o
+./debug\moc_manualtest.o
+./debug\moc_thread1.o
+./debug\moc_helpdialog.o
+./debug\moc_warning.o
+./debug\qrc_myresource.o
+);

@@ -1,0 +1,648 @@
+#include "widget.h"
+#include "ui_widget.h"
+#include <QTimer>
+#include <QDebug>
+#include <stdlib.h>
+#include <stdio.h>
+#include <QTime>
+#include <QTextCodec>
+#include "Config.h"
+#include <QFile>
+#include <QString>
+#include <QPainter>
+#include <math.h>
+
+
+extern TEMPRORARYDATA *temprorarydata;
+float MAX_V_VALUEDATA_DC,MAX_V_VALUEDATA_AC,MIN_V_VALUEDATA_DC,MIN_V_VALUEDATA_AC;
+float MAX_I_VALUEDATA_DC,MAX_I_VALUEDATA_AC,MIN_I_VALUEDATA_DC,MIN_I_VALUEDATA_AC;
+unsigned char result[70],receive_data[70];
+double out_time,change_timedata;
+float FreqRevision,VaPhaseRevision,VbPhaseRevision,VcPhaseRevision;
+float VzPhaseRevision,IaPhaseRevision,IbPhaseRevision,IcPhaseRevision;
+
+float V1RelaPhase=0,V2RelaPhase=0,V3RelaPhase=0,VzRelaPhase=0,I1RelaPhase=0,I2RelaPhase=0,I3RelaPhase=0;
+
+
+
+long auto_i=0,IRQcnt=0,auto_count=0,tice=0;
+//ÖÐ¶Ï³ÌÐòµÄ±äÁ¿¡£
+
+int   input_par=0,Decimal=0,sige_flag=0,HelpFlag=0;
+
+int   INPAR=0,seq_count,SeqStep=0;
+int   testcount=0,time_relay_testcount=0,auto_end=0;
+int   cx,cy,cx_start,cx_mid,cx_end,starttest=0,low,row,page;
+int   V1DC,V2DC,V3DC;
+int   TestItem1,TestItem2,TestItem3,OutputMode,TestObject;
+float FixedUnderTime,FixedOverTime;
+float StartVoltage,EndVoltage,ActStep,ReturnStep,StepTime,Coarse_Voltage_step=1,coarse_fine_devision=10;
+float TripValue,TripValue1,ReturnValue,ReturnValue1,TripTime1,TripTime2,TripTime3;
+float Phase,LogicResolution,SystemFrec;
+float ChangeValue,timeout;
+
+int exit_par,save_f;
+int sys[4];
+
+char   V1Output,V2Output,V3Output,I1Output,I2Output,I3Output;
+float VzOutput3Uo=1,VzOutputAc=57.00,VzOutputDc=220;
+float SystemVolt=0;
+
+float V_coarse_step=1,V_fine_step=0.01,I_coarse_step=1,I_fine_step=0.01,F_coarse_step=1,F_fine_step=0.1;
+
+
+float faultduration=10; //2014-11-13 du kai
+
+
+
+Widget::Widget(QWidget *parent) :
+    QWidget(parent),
+    ui(new Ui::Widget)
+{
+    ui->setupUi(this);
+#ifdef ARMLINUX
+  this->setWindowFlags(Qt::Dialog|Qt::CustomizeWindowHint);
+#endif
+    QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
+    QFont font("wenquanyi",13);
+    setFont(font);
+   // QFile file(":/my.qss");
+  //  file.open(QFile::ReadOnly);
+ //   QString stylesheet=tr(file.readAll());
+ //   setStyleSheet(stylesheet);
+    init_par();
+    currenteditpos=0; //当前linedit位置
+    switch(OutputMode)
+    {
+    case 1:
+          ui->radioButton->setChecked(true);
+          ui->radioButton_2->setChecked(false);
+          ui->radioButton_3->setChecked(false);
+          ui->radioButton_4->setChecked(false);
+          ui->radioButton_5->setChecked(false);
+          ui->radioButton_6->setChecked(false);
+          break;
+    case 2:
+          ui->radioButton->setChecked(false);
+          ui->radioButton_2->setChecked(true);
+          ui->radioButton_3->setChecked(false);
+          ui->radioButton_4->setChecked(false);
+          ui->radioButton_5->setChecked(false);
+          ui->radioButton_6->setChecked(false);
+          break;
+    case 3:
+          ui->radioButton->setChecked(false);
+          ui->radioButton_2->setChecked(false);
+          ui->radioButton_3->setChecked(true);
+          ui->radioButton_4->setChecked(false);
+          ui->radioButton_5->setChecked(false);
+          ui->radioButton_6->setChecked(false);
+          break;
+    case 4:
+          ui->radioButton->setChecked(false);
+          ui->radioButton_2->setChecked(false);
+          ui->radioButton_3->setChecked(false);
+          ui->radioButton_4->setChecked(true);
+          ui->radioButton_5->setChecked(false);
+          ui->radioButton_6->setChecked(false);
+          break;
+    case 5:
+          ui->radioButton->setChecked(false);
+          ui->radioButton_2->setChecked(false);
+          ui->radioButton_3->setChecked(false);
+          ui->radioButton_4->setChecked(false);
+          ui->radioButton_5->setChecked(true);
+          ui->radioButton_6->setChecked(false);
+          break;
+    case 6:
+          ui->radioButton->setChecked(false);
+          ui->radioButton_2->setChecked(false);
+          ui->radioButton_3->setChecked(false);
+          ui->radioButton_4->setChecked(false);
+          ui->radioButton_5->setChecked(false);
+          ui->radioButton_6->setChecked(true);
+          break;
+    }
+
+    ui->checkBox->setStyleSheet("QCheckBox{font:16px;}QCheckBox::indicator {width: 13px; height: 13px;}QCheckBox::indicator:checked {image: url(:/dagou.png);}");
+    ui->checkBox_2->setStyleSheet("QCheckBox{font:16px;}QCheckBox::indicator {width: 13px; height: 13px;}QCheckBox::indicator:checked {image: url(:/dagou.png);}");
+    ui->checkBox_3->setStyleSheet("QCheckBox{font:16px;}QCheckBox::indicator {width: 13px; height: 13px;}QCheckBox::indicator:checked {image: url(:/dagou.png);}");
+
+    ui->lineEdit->setText(QString::number(StartVoltage));
+    ui->lineEdit_2->setText(QString::number(EndVoltage));
+    ui->lineEdit_3->setText(QString::number(ActStep));
+    ui->lineEdit_4->setText(QString::number(StepTime));
+    ui->lineEdit_5->setText(QString::number(faultduration));
+
+    ui->label_6->clear();
+    ui->label_7->clear();
+    ui->label_8->clear();
+    ui->label_10->clear();
+    ui->label_11->clear();
+
+    if(TestItem1==1)
+        ui->checkBox->setChecked(true);
+    if(TestItem2==1)
+        ui->checkBox_2->setChecked(true);
+    if(TestItem3==1)
+        ui->checkBox_3->setChecked(true);
+    uartthread =new thread1;
+    connect(uartthread,SIGNAL(SIG_testresult(int)),SLOT(showtestresult(int)));
+    connect(uartthread,SIGNAL(SIG_DisplayChangeValue(bool,float)),SLOT(DisplayChangeValue(bool,float)));
+    connect(uartthread,SIGNAL(SIG_dspstate(int)),SLOT(showdspstate(int)));
+    uartthread->start();
+}
+
+void Widget::init_par()
+{
+       FILE *fp;
+        OutputMode=1;
+        TestObject=1;
+        FixedUnderTime=0.5;
+        FixedOverTime=0.5;
+        TestItem1=1;
+        TestItem2=0;
+        TestItem3=0;
+        StartVoltage=30;            //RatedVoltage;
+        EndVoltage=10;             //0.4*RatedVoltage;//FixedUnderVoltage;
+        ActStep=0.5;
+        ReturnStep=0.5;
+        StepTime=FixedUnderTime+0.5;
+        Phase=0;
+        V1DC=0;
+        V2DC=0;
+        V3DC=0;
+        faultduration=10;
+       if((fp=fopen("sysset.txt","a+"))==NULL)
+          return;
+       fscanf(fp,"%d,%d,%d,%f,%f,%f",&sys[1],&sys[2],&sys[3],&SystemFrec,&SystemVolt,&LogicResolution);
+       fclose(fp);
+       exit_par=0;
+
+
+
+
+}
+
+
+void Widget::showdspstate(int state)
+{
+
+    switch(state)
+       {
+       case 0: ui->label_9->setText(tr("run normally")); break;
+       case 1: ui->label_9->setText(tr("IA overload")); break;
+       case 2: ui->label_9->setText(tr("IABC Temperature protection")); break;
+       case 3: ui->label_9->setText(tr("IC resume")); break;
+       case 4: ui->label_9->setText(tr("IB overload")); break;
+       case 5: ui->label_9->setText(tr("IC closedown")); break;
+       case 6: ui->label_9->setText(tr("IA resume")); break;
+       case 7: ui->label_9->setText(tr("IC overload")); break;
+       case 8: ui->label_9->setText(tr("IABC power protection")); break;
+       case 9: ui->label_9->setText(tr("IB resume")); break;
+       case 10: ui->label_9->setText(tr("VA overload")); break;
+
+       case 12: ui->label_9->setText(tr("VC resume")); break;
+       case 13: ui->label_9->setText(tr("VB overload ")); break;
+       case 14: ui->label_9->setText(tr("VABC Temperature protection")); break;
+       case 15: ui->label_9->setText(tr("VA resume")); break;
+       case 16: ui->label_9->setText(tr("VC overload")); break;
+       case 17: ui->label_9->setText(tr("VABC power protection")); break;
+       case 18: ui->label_9->setText(tr("Vz overload")); break;
+       case 19: ui->label_9->setText(tr("direct current overload")); break;
+       case 20: ui->label_9->setText(tr("IABC power protection")); break;
+       case 21: ui->label_9->setText(tr("VC resume")); break;
+       }
+
+
+}
+
+
+
+
+void Widget::vi_parameter_enter(int position)
+{
+    qDebug()<<__func__<<__LINE__<<MAX_V_VALUEDATA_AC;
+    switch(position)
+    {
+    case 1:
+        if(StartVoltage>MAX_V_VALUEDATA_AC*2)
+        StartVoltage=MAX_V_VALUEDATA_AC*1.6;
+        else if(StartVoltage<0)
+        StartVoltage=0;
+        break;
+    case 2:
+        if(EndVoltage>MAX_V_VALUEDATA_AC*2)
+           EndVoltage=MAX_V_VALUEDATA_AC*2;
+          else if(EndVoltage<0)
+           EndVoltage=0;//2?šºy?T??
+          break;
+    case 3:
+        if(ActStep>10)
+            ActStep=10;
+        else if(ActStep<0)
+            ActStep=0.1;//
+        break;
+    case 4:
+        if(StepTime>999.99)
+            StepTime=999.99;
+        else if(StepTime<0)
+            StepTime=0.1;//
+        break;
+    case 5:
+        if(faultduration>999.99)
+            faultduration=999.99;
+        else if(faultduration<0)
+            faultduration=0.1;//
+        break;
+
+}
+
+
+
+
+}
+
+
+void Widget::DisplayChangeValue(bool flag, float value)
+{
+    if(flag)
+    {
+    ui->label_6->setText(QString::number(value));
+    }
+    else ui->label_6->clear();
+}
+
+
+
+void Widget::showtestresult(int num)
+{
+   char bufstr[20];
+   float ReturnQuotiety,Temp;
+
+    switch(num)
+    {
+
+case 0:   ui->label_7->clear();
+          ui->label_8->clear();
+          ui->label_10->clear();
+          ui->label_11->clear();
+
+          break;
+case 1://显示动作值			
+        if(TripTime1==-1)
+         {
+                ui->label_7->setText(tr("pick up(V):no trip"));
+                
+        }
+        else
+        {
+         ui->label_7->setText(tr("pick up(V):")+QString::number(TripValue));
+        }
+       break;
+
+case 2://显示返回值
+        if(TripTime2==-1)
+          ui->label_8->setText(tr("drop off(V):no trip"));
+        else
+       {
+
+         ui->label_8->setText(tr("drop off(V):")+QString::number(ReturnValue));
+        }
+        if((TripTime1!=-1&&TripTime2!=-1)&&TestItem3==0)
+           {
+                 ReturnQuotiety=ReturnValue/TripValue;
+                 Temp=ReturnQuotiety*10000;
+                 Temp=ceil(Temp);
+                 ReturnQuotiety=Temp/10000;//将返回系数的限制在小数点后最多只
+                 gcvt(ReturnQuotiety,7,bufstr);//将返回系数转化为字符串
+                 ui->label_10->setText(tr("Return Quotiety:")+QString::number(ReturnQuotiety));
+           }
+        break;
+
+ case 3:
+        if(TestItem1==1&&TestItem2==1)
+        {  //如果测试了动作值、返回值，则动作时间的显示位置如  下。
+            if(TripTime3==-1)
+            ui->label_10->setText(tr("trip time(s):no trip"));
+            else
+            {
+            ui->label_10->setText(tr("trip time(s):")+QString::number(TripTime3));
+            }
+
+          if(TripTime1!=-1&&TripTime2!=-1)
+              {
+                    ReturnQuotiety=ReturnValue/TripValue;
+                    Temp=ReturnQuotiety*10000;
+                    Temp=ceil(Temp);
+                    ReturnQuotiety=Temp/10000;//将返回系数的限制在小数点后最多只有四位
+                    gcvt(ReturnQuotiety,7,bufstr);//将返回系数转化为字符串
+                    ui->label_11->setText(tr("Return Quotiety:")+QString::number(ReturnQuotiety));
+              }
+      }
+
+      else if(TestItem1==1&&TestItem2==0)
+      {//如果测试了动作值，但没有测试返回值，则动作时间的显示位置如下。
+            if(TripTime3==-1)
+            ui->label_8->setText(tr("trip time(s):no trip"));
+            else
+            {
+            ui->label_8->setText(tr("trip time(s):")+QString::number(TripTime3));
+            }
+
+      }
+    else if(TestItem1==0&&TestItem2==0)
+      {//如果只测试了动作时间，则动作时间的显示位置如下。
+            if(TripTime3==-1)
+            ui->label_7->setText(tr("trip time(s):no trip"));
+            else
+            {
+              ui->label_7->setText(tr("trip time(s):")+QString::number(TripTime3));
+            }
+      }
+    break;
+    }
+
+}
+
+
+
+Widget::~Widget()
+{
+    delete ui;
+}
+
+void Widget::on_radioButton_clicked()
+{
+
+    OutputMode=1;
+}
+
+void Widget::on_radioButton_2_clicked()
+{
+  OutputMode=2;
+}
+
+void Widget::on_radioButton_3_clicked()
+{
+OutputMode=3;
+}
+
+void Widget::on_radioButton_4_clicked()
+{
+ OutputMode=4;
+}
+
+void Widget::on_radioButton_5_clicked()
+{
+OutputMode=5;
+}
+
+void Widget::on_radioButton_6_clicked()
+{
+OutputMode=6;
+}
+
+void Widget::on_checkBox_clicked()
+{
+if(TestItem1==1)
+    TestItem1=0;
+else TestItem1=1;
+}
+
+void Widget::on_checkBox_2_clicked()
+{
+    if(TestItem2==1)
+        TestItem2=0;
+    else TestItem2=1;
+}
+
+void Widget::on_checkBox_3_clicked()
+{
+    if(TestItem3==1)
+        TestItem3=0;
+    else TestItem3=1;
+}
+
+void Widget::on_lineEdit_selectionChanged()
+{
+    if(temprorarydata->keypadopenflag==false)
+   { currentedit=ui->lineEdit;
+    currenteditpos=1;
+    temprorarydata->keypadopenflag=true;
+    pad=new keypads;
+    pad->setModal(true);
+    connect(pad,SIGNAL(sendvalue(QString)),this,SLOT(setlineedittext(QString)));
+    connect(pad,SIGNAL(sendflag()),this,SLOT(clearkeypadflag()));
+    pad->show();
+    pad->raise();
+    pad->activateWindow();
+
+    }
+}
+
+void Widget::on_lineEdit_2_selectionChanged()
+{
+if(temprorarydata->keypadopenflag==false)
+ { currentedit=ui->lineEdit_2;
+    temprorarydata->keypadopenflag=true;
+  currenteditpos=2;
+  pad=new keypads;
+  pad->setModal(true);
+  connect(pad,SIGNAL(sendvalue(QString)),this,SLOT(setlineedittext(QString)));
+  connect(pad,SIGNAL(sendflag()),this,SLOT(clearkeypadflag()));
+  pad->show();
+  pad->raise();
+  pad->activateWindow();
+}
+}
+
+void Widget::on_lineEdit_3_selectionChanged()
+{
+ if(temprorarydata->keypadopenflag==false)
+ {
+  currentedit=ui->lineEdit_3;
+  temprorarydata->keypadopenflag=true;
+  currenteditpos=3;
+  pad=new keypads;
+  pad->setModal(true);
+  connect(pad,SIGNAL(sendvalue(QString)),this,SLOT(setlineedittext(QString)));
+  connect(pad,SIGNAL(sendflag()),this,SLOT(clearkeypadflag()));
+  pad->show();
+  pad->raise();
+  pad->activateWindow();
+ }
+}
+
+void Widget::on_lineEdit_4_selectionChanged()
+{
+if(temprorarydata->keypadopenflag==false)
+{currentedit=ui->lineEdit_4;
+        temprorarydata->keypadopenflag=true;
+currenteditpos=4;
+pad=new keypads;
+pad->setModal(true);
+connect(pad,SIGNAL(sendvalue(QString)),this,SLOT(setlineedittext(QString)));
+connect(pad,SIGNAL(sendflag()),this,SLOT(clearkeypadflag()));
+pad->show();
+pad->raise();
+pad->activateWindow();
+    }
+}
+
+void Widget::on_lineEdit_5_selectionChanged()
+{
+    if(temprorarydata->keypadopenflag==false)
+   { currentedit=ui->lineEdit_5;
+     temprorarydata->keypadopenflag=true;
+    currenteditpos=5;
+    pad=new keypads;
+    pad->setModal(true);
+    connect(pad,SIGNAL(sendvalue(QString)),this,SLOT(setlineedittext(QString)));
+    connect(pad,SIGNAL(sendflag()),this,SLOT(clearkeypadflag()));
+    pad->show();
+    pad->raise();
+    pad->activateWindow();
+    }
+
+}
+
+void Widget::setlineedittext(QString str)
+{
+    bool ok;
+    float number=str.toFloat(&ok);
+    if(ok==false)
+        return;
+    switch(currenteditpos)
+    {
+    case 1:
+        StartVoltage=number;
+        vi_parameter_enter(currenteditpos);
+        currentedit->setText(QString::number(StartVoltage,'g',6));
+        break;
+    case 2:
+        EndVoltage=number;
+        vi_parameter_enter(currenteditpos);
+
+        currentedit->setText(QString::number(EndVoltage,'g',6));
+        break;
+    case 3:
+        ActStep=number;
+        vi_parameter_enter(currenteditpos);
+        currentedit->setText(QString::number(ActStep,'g',6));
+        break;
+    case 4:
+        StepTime=number;
+        vi_parameter_enter(currenteditpos);
+        currentedit->setText(QString::number(StepTime,'g',6));
+        break;
+    case 5:
+        faultduration=number;
+        vi_parameter_enter(currenteditpos);
+        currentedit->setText(QString::number(faultduration,'g',6));
+        break;
+    }
+
+}
+
+void Widget::clearkeypadflag()
+{
+    temprorarydata->keypadopenflag=false;
+}
+
+void Widget::on_pushButton_2_clicked() //保存报告
+{
+    if(save_f==0)
+        return;
+                save_f=0;
+                FILE *fp;
+                char strbuf[80];
+                int day,mon,year;
+                int hour,minute,second;
+                fp=fopen("report.txt","a+");
+                if(fp==NULL)
+                return;
+                fprintf(fp,"\n");
+                day=QDate::currentDate().day();
+                mon=QDate::currentDate().month();
+                year=QDate::currentDate().year();
+                fprintf(fp,"Date:%d.%d.%d\n",mon,day,year);
+
+                hour=QTime::currentTime().hour();
+                minute=QTime::currentTime().minute();
+                second=QTime::currentTime().second();
+                fprintf(fp,"Time:%d.%d.%d\n",hour,minute,second);
+
+               strcpy(strbuf,"Voltage relay test result");
+               fprintf(fp,"%s\n",strbuf);
+
+               if(TestObject==1)
+                 strcpy(strbuf,"Under-Voltage relay");
+               else if(TestObject==2)
+                 strcpy(strbuf,"Over-Voltage relay");
+               fprintf(fp,"%s\n",strbuf);
+
+               if(TestItem1==1)
+                 {
+                   strcpy(strbuf,"pick up(V):");
+                   fprintf(fp,"%s",strbuf);
+                   if(TripTime1==-1)
+                     strcpy(strbuf,"No Trip");
+                   else
+                     gcvt(TripValue ,7,strbuf);
+                   fprintf(fp,"%s\n",strbuf);
+                 }
+
+               if(TestItem2==1)
+                 {
+                   strcpy(strbuf,"drop off(V):");
+                   fprintf(fp,"%s",strbuf);
+                   if(TripTime2==-1)
+                     strcpy(strbuf,"No Trip");
+                   else
+                     gcvt(ReturnValue ,7,strbuf);
+                   fprintf(fp,"%s\n",strbuf);
+                 }
+
+               if(TestItem3==1)
+                 {
+                   strcpy(strbuf,"Trip time(s):");
+                   fprintf(fp,"%s",strbuf);
+                   if(TripTime3==-1)
+                     strcpy(strbuf,"No Trip");
+                   else
+                     gcvt(TripTime3 ,7,strbuf);
+                   fprintf(fp,"%s\n",strbuf);
+
+                 }
+
+               if(TestItem2==1&&TestItem1==1&&TripTime1!=-1&&TripTime2!=-1)
+                 {
+                   float ReturnQuotiety,Temp;
+                   strcpy(strbuf,"Return Quotiety:");
+                   fprintf(fp,"%s",strbuf);
+                   ReturnQuotiety=ReturnValue/TripValue;
+                   Temp=ReturnQuotiety*10000;
+                   Temp=ceil(Temp);
+                   ReturnQuotiety=Temp/10000;
+                   gcvt(ReturnQuotiety,7,strbuf);
+                   fprintf(fp," %s\n",strbuf);
+
+                 }
+               fclose(fp);
+
+
+}
+
+void Widget::on_pushButton_3_clicked() //退出
+{
+    if(starttest==1)
+        return;
+
+
+ uartthread->terminate();
+ uartthread->wait();
+ free(temprorarydata);
+ temprorarydata=NULL;
+ close();
+}

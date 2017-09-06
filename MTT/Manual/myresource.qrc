@@ -1,0 +1,25 @@
+<RCC>
+    <qresource prefix="/">
+        <file>my.qss</file>
+        <file>dagou.png</file>
+        <file>picture/0.png</file>
+        <file>picture/1.png</file>
+        <file>picture/2.png</file>
+        <file>picture/3.png</file>
+        <file>picture/4.png</file>
+        <file>picture/5.png</file>
+        <file>picture/6.png</file>
+        <file>picture/7.png</file>
+        <file>picture/8.png</file>
+        <file>picture/9.png</file>
+        <file>picture/12.png</file>
+        <file>picture/cha.png</file>
+        <file>picture/del.png</file>
+        <file>picture/enter.png</file>
+        <file>picture/fu.png</file>
+        <file>picture/hong.png</file>
+        <file>picture/hei.png</file>
+        <file>trans/zh.qm</file>
+        <file>trans/en.qm</file>
+    </qresource>
+</RCC>

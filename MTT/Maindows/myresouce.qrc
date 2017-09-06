@@ -1,0 +1,39 @@
+<RCC>
+    <qresource prefix="/">
+        <file>trans/en.qm</file>
+        <file>trans/zh.qm</file>
+        <file>pic/Anytest.png</file>
+        <file>pic/backgound.png</file>
+        <file>pic/BaseCurrent.png</file>
+        <file>pic/DC.png</file>
+        <file>pic/Differ.png</file>
+        <file>pic/Freq.png</file>
+        <file>pic/Harmonic.png</file>
+        <file>pic/Inversetime.png</file>
+        <file>pic/Middle.png</file>
+        <file>pic/Power.png</file>
+        <file>pic/Report.png</file>
+        <file>pic/Sysconfig.png</file>
+        <file>pic/Systemtest.png</file>
+        <file>pic/Voltage.png</file>
+        <file>pic/Zero.png</file>
+        <file>pic/Zone.png</file>
+        <file>picture/0.png</file>
+        <file>picture/1.png</file>
+        <file>picture/2.png</file>
+        <file>picture/3.png</file>
+        <file>picture/4.png</file>
+        <file>picture/5.png</file>
+        <file>picture/6.png</file>
+        <file>picture/7.png</file>
+        <file>picture/8.png</file>
+        <file>picture/9.png</file>
+        <file>picture/12.png</file>
+        <file>picture/cha.png</file>
+        <file>picture/del.png</file>
+        <file>picture/enter.png</file>
+        <file>picture/fu.png</file>
+        <file>picture/hei.png</file>
+        <file>picture/hong.png</file>
+    </qresource>
+</RCC>

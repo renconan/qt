@@ -1,0 +1,17 @@
+INPUT(
+./release\Key.o
+./release\keypads.o
+./release\main.o
+./release\Manseq.o
+./release\manualtest.o
+./release\Testcom2.o
+./release\thread1.o
+./release\helpdialog.o
+./release\warning.o
+./release\moc_keypads.o
+./release\moc_manualtest.o
+./release\moc_thread1.o
+./release\moc_helpdialog.o
+./release\moc_warning.o
+./release\qrc_myresource.o
+);

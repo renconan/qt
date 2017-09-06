@@ -1,0 +1,5 @@
+工控机主界面
+显示模板的名字
+
+ui->pushButton->setIconSize(QSize(80,80));
+ui->pushButton->setIcon(QIcon(QString::fromUtf8(":/Current.jpg"))) ;

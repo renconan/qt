@@ -1,0 +1,142 @@
+#include "widget.h"
+#include "ui_widget.h"
+#include <QTimer>
+#include <QDebug>
+#include <stdlib.h>
+#include <stdio.h>
+#include <QTime>
+#include <QTextCodec>
+#include "Config.h"
+#include <QFile>
+#include <QString>
+#include <QPainter>
+
+
+
+
+
+
+float MAX_V_VALUEDATA_DC,MAX_V_VALUEDATA_AC,MIN_V_VALUEDATA_DC,MIN_V_VALUEDATA_AC;
+float MAX_I_VALUEDATA_DC,MAX_I_VALUEDATA_AC,MIN_I_VALUEDATA_DC,MIN_I_VALUEDATA_AC;
+
+float FreqRevision,VaPhaseRevision,VbPhaseRevision,VcPhaseRevision;
+float VzPhaseRevision,IaPhaseRevision,IbPhaseRevision,IcPhaseRevision;
+
+unsigned char result[70],receive_data[70];
+double out_time,change_timedata;
+int   input_par=0,Decimal=0,sige_flag=0,HelpFlag=0;
+//input_par为参数是否处于编辑状态的标志。input_par=0：未编辑；input_par=1：编辑状态。
+//Decimal为小数点的输入与否标志，Decimal=0：未输入；Decimal=1：已经输入小数点。
+//sige_flag为负号的输入与否的标志。sige_flag=0：未输入；sige_flag=1：已经输入负数。
+long auto_i=0,IRQcnt=0,auto_count=0,tice=0;
+//中断程序的变量。
+int   INPAR=0,seq_count,SeqStep=0;
+int   testcount=0,time_relay_testcount=0,auto_end=0;
+int   cx,cy,cx_start,cx_mid,cx_end,increase,starttest=0,low,row,page;
+int   I1DC,I2DC,I3DC;
+int   TestItem1,TestItem3,TestItem2,OutputMode;
+//Curstep电流不长需要在 系统设置界面中减价
+float StartCurrent,EndCurrent,ActStep,ReturnStep,StepTime,CurCoarseStep=1;
+int   coarse_fine_devision=10;    //???ì??o?a???ì???????ì??à??oy
+float LogicResolution,SystemFrec;
+float TripValue,TripValue1,ReturnValue,ReturnValue1,TripTime,ReturnQuotiety;
+float ChangeValue,timeout;
+int exit_par,save_f;
+//exit_par：退出程序标志。save_f：保存结果标志，为1表示有新的测试结果，可以保存，为0表示没有新的测试结果
+int sys[4];
+char   V1Output,V2Output,V3Output,I1Output,I2Output,I3Output;
+
+Widget::Widget(QWidget *parent) :
+    QWidget(parent),
+    ui(new Ui::Widget)
+{
+    ui->setupUi(this);
+  //  ui->lineEdit->setFocus();
+
+
+    /*
+    ui->lineEdit->setText(tr("12345"));
+    QString text=ui->lineEdit->text();
+    int length=text.length();
+    qDebug()<<text<<"length:"<<length;
+    ui->lineEdit->setSelection(1,4);
+    ui->lineEdit->deselect();
+*/
+
+
+
+#ifdef ARMLINUX
+  this->setWindowFlags(Qt::Dialog|Qt::CustomizeWindowHint);
+#endif
+    QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
+    QFont font("wenquanyi",13);
+    setFont(font);
+
+
+    QFile file(":/my.qss");
+    file.open(QFile::ReadOnly);
+    QString stylesheet=tr(file.readAll());
+    setStyleSheet(stylesheet);
+    init_par();
+
+
+    /*    显示所有数据 测试项目和 输出选择   */
+    ui->lineEdit->setText(QString::number(StartCurrent));
+    ui->lineEdit_2->setText(QString::number(EndCurrent));
+    ui->lineEdit_3->setText(QString::number(CurCoarseStep));
+
+
+     ui->lineEdit_4->setText(QString::number(ActStep));
+     ui->lineEdit_5->setText(QString::number(StepTime));
+     ui->lineEdit_6->setText(QString::number(coarse_fine_devision));
+
+     ui->label_7->clear();
+     ui->label_8->clear();
+     ui->label_11->clear();
+
+
+         if(TestItem1==1)
+            ui->checkBox->setChecked(true);
+          else
+            ui->checkBox->setChecked(false);
+
+          if(TestItem2==1)
+            ui->checkBox_2->setChecked(true);
+          else
+           ui->checkBox_2->setChecked(false);
+
+
+          if(TestItem3==1)
+              ui->checkBox_3->setChecked(true);
+          else
+             ui->checkBox_3->setChecked(false);
+
+          display_variry(OutputMode);
+
+
+
+    uartthread =new thread1;
+    connect(uartthread,SIGNAL(SIG_sendfocuspos(int)),this,SLOT(getfocuspos(int)));
+    connect(uartthread,SIGNAL(SIG_displaydataandstate(int)),this,SLOT(displaydataandstate(int)));
+    connect(uartthread,SIGNAL(SIG_editstate(bool,int)),this,SLOT(editstate(bool,int))); 
+    connect(uartthread,SIGNAL(SIG_testresult(int,float)),SLOT(showtestresult(int,float)));
+    connect(uartthread,SIGNAL(SIG_DisplayChangeValue(bool,float)),SLOT(DisplayChangeValue(bool,float)));
+
+    connect(uartthread,SIGNAL(SIG_dspstate(int)),SLOT(showdspstate(int)));
+    connect(uartthread,SIGNAL(SIG_helpintershow(void)),SLOT(showhelpinter(void)));
+    connect(uartthread,SIGNAL(SIG_helpinterclose(void)),SLOT(closehelpinter(void)));
+    connect(uartthread,SIGNAL(SIG_appclose(void)),SLOT(closeapp(void)));
+    connect(uartthread,SIGNAL(SIG_savereport(int)),SLOT(savereport(int)));
+    uartthread->start();
+}
+
+
+
+
+
+void Widget::showdspstate(int state)
+{
+
+        switch(state)
+    {
+    case 0: ui->label_6->setText(tr("

@@ -1,0 +1,17 @@
+INPUT(
+./debug\Gpio.o
+./debug\KEY.o
+./debug\keypads.o
+./debug\main.o
+./debug\Phraseseq.o
+./debug\Testcom2.o
+./debug\thread1.o
+./debug\Uartset.o
+./debug\widget.o
+./debug\helpdialog.o
+./debug\moc_keypads.o
+./debug\moc_thread1.o
+./debug\moc_widget.o
+./debug\moc_helpdialog.o
+./debug\qrc_myresource.o
+);

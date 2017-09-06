@@ -1,0 +1,51 @@
+ReadAutoLogic    528 signature:112  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:37  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:90  seq_count=1
+ReadAutoLogic    528 signature:37  seq_count=1
+ReadAutoLogic    528 signature:15  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:37  seq_count=1
+ReadAutoLogic    528 signature:0  seq_count=1
+ReadAutoLogic    528 signature:90  seq_count=1
+ReadAutoLogic    528 signature:9  seq_count=1
+ReadAutoLogic    528 signature:5  seq_count=1
+ReadAutoLogic    528 signature:37  seq_count=1
+ReadAutoLogic    528 signature:37  seq_count=1
+
+
+ReadTripTimeLogic    1013 signature:32  seq_count=3
+ReadTripTimeLogic    1013 signature:5  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:112  seq_count=3
+ReadTripTimeLogic    1013 signature:12  seq_count=3
+ReadTripTimeLogic    1013 signature:0  seq_count=3
+ReadTripTimeLogic    1013 signature:0  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:15  seq_count=3
+ReadTripTimeLogic    1013 signature:9  seq_count=3
+ReadTripTimeLogic    1013 signature:66  seq_count=3
+ReadTripTimeLogic    1013 signature:9  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:112  seq_count=3
+ReadTripTimeLogic    1013 signature:0  seq_count=3
+ReadTripTimeLogic    1013 signature:90  seq_count=3
+ReadTripTimeLogic    1013 signature:32  seq_count=3
+ReadTripTimeLogic    1013 signature:5  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:37  seq_count=3
+ReadTripTimeLogic    1013 signature:112  seq_count=3
+
+
+
+
+
+
+

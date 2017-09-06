@@ -1,0 +1,48 @@
+模板定值单配置软件
+2014.11.19
+在定值单文件中增加 测试结果的变量及评估方法
+//电电流
+tripvalue=0.000
+triptime=0.000
+ASSESSTRIPVALUE=ABS(tripvalue-Iset)<0.02
+ASSESSTRIPTIME=ABS(triptime-Tset)<0.02
+//电压
+tripvalue=0.000
+triptime=0.000
+ASSESSTRIPVALUE=ABS(tripvalue-Vset)<0.02
+ASSESSTRIPTIME=ABS(triptime-Tset)<0.02
+//方向
+ACTANGLE1=0.000
+ACTANGLE2=0.000
+PHRASEMTA=0.000
+ASSESSMTA=ABS(PHRASEMTA-mta)<2
+//频率
+tripfrec=0.000
+ASSESSTRIPFREC=ABS(Fset-tripfrec)<(0.02*Fset)
+dfdt0.95=0
+dfdt1.05=0
+dfdttrip=0
+triptime=0.000
+ASSESSTRIPTIME=ABS(triptime-Tset)<0.02
+Vblocktrip=0.000
+ASSESSVBLOCK=ABS(Vblocktrip-vblock)<0.2
+
+
+
+2014.11.20
+模板定值单中增加了测试结果
+2014.11.26 
+更改定值单 的ID重复打印
+
+
+2014.12.08
+更改定值单的配置 界面，具有起始值 终止值
+2014.12.09
+已经增加了定值单生成,并可以打开定值单文件，进行解析  下一步：解析所有的变量，将其变为值
+2014.12.11
+将变量 解析为值了
+2012.12.12 
+将按照蒲老师的11号晚的意思 将定值配置界面重新更改
+
+
+

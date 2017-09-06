@@ -1,0 +1,194 @@
+更加了定值引用的位置 
+1.更改源程序 
+  添加的界面需要加入
+2. 读定值单程序中 需要加入Ref解析
+ 
+3. 生成定值单需要解析 加入Ref
+
+2015.15.2.4
+增加相位的固定电压 固定电流
+定值引用处(在定值ID配置界面中的Ref)添加多处引用不同之处使用,分开 char ref[512];长度更改为512长度
+    while((*p1!=',')&&(*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a)) 更改为
+                                    {
+                                    setvalue.ref[i++]=*p1;
+                                    p1++;
+                                    }    
+
+
+  while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))           
+
+
+
+
+
+
+2015.02.06增加 频率dfdt的稳定性测试    
+format 中dfdt触发时间结构体中添加 相关变量
+
+typedef struct
+ {
+    bool valid;
+    int  TestType; //测试类型 1 触发时间测试 2 测试dfdt稳定性
+    VARIABLE dfdt; //停止频率
+    VARIABLE stopfreq; //触发时间的停止频率
+    VARIABLE Stability_StartFreq; //稳定性测试 起始频率
+    VARIABLE Stability_EndFreq;   //稳定性测试的终止频率
+    VARIABLE Stability_Duration;  //稳定性测试的持续时间
+    ASSESSORROR assessdfdttriptime;
+    float tripdfdttime;
+ }DFDTTRIPTIMEVARIABLE;
+
+
+
+
+
+frequency.cpp中添加 相关界面上的值提取
+
+在Writetestfunc 中的
+  if(node->value.freset.valid) //频率中的
+  if(testitem&0x08&&node->value.freset.Tripdfdttime.valid==true) 的
+  添加
+  int TestType=node->value.freset.Tripdfdttime.TestType;
+  sprintf(strbuf,"TESTTYPE=%d",TestType);
+  fprintf(fp,"%s\n",strbuf);
+  if(TestType==1) 
+{
+
+}
+  else
+     {
+      sprintf(strbuf,"STABILITYSTARTFREQ=%s",node->value.freset.Tripdfdttime.Stability_StartFreq.text);
+      fprintf(fp,"%s\n",strbuf);
+      sprintf(strbuf,"STABILITYENDFREQ=%s",node->value.freset.Tripdfdttime.Stability_EndFreq.text);
+      fprintf(fp,"%s\n",strbuf);
+      sprintf(strbuf,"STABILITYDURATION=%s",node->value.freset.Tripdfdttime.Stability_Duration.text);
+      fprintf(fp,"%s\n",strbuf);
+     }
+
+
+在 ReadFrequencyVariable函数中的
+ case 8: //滑差闭锁时间 添加
+    
+    else if(memcmp(p1,"TESTTYPE=",9)==0)
+        {
+            p1=p1+9;
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+           sectset.freset.Tripdfdttime.TestType=atoi(Testname);
+        }
+
+        else if(memcmp(p1,"STABILITYSTARTFREQ=",strlen("STABILITYSTARTFREQ="))==0)
+        {
+            p1=p1+strlen("STABILITYSTARTFREQ=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_StartFreq.text,Testname);
+        }
+
+        else if(memcmp(p1,"STABILITYENDFREQ=",strlen("STABILITYENDFREQ="))==0)
+        {
+            p1=p1+strlen("STABILITYENDFREQ=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_EndFreq.text,Testname);
+        }
+        
+        else if(memcmp(p1,"STABILITYDURATION=",strlen("STABILITYDURATION="))==0)
+        {
+            p1=p1+strlen("STABILITYDURATION=");
+            i=0;
+            while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+            {
+                Testname[i]=*p1;
+                i++;
+                p1++;
+            }
+            Testname[i]='\0';
+            strcpy(sectset.freset.Tripdfdttime.Stability_Duration.text,Testname);
+        }
+        
+
+2015.02.10
+增加 电压测试中 Vpn Vpp
+ //电压的定值
+ typedef struct{
+    bool valid;
+    bool done;  //是否要做
+    char name[128];
+    int  Vpn_Vpp;
+    VARIABLE Testitem;
+    VARIABLE FaultType;
+    VARIABLE Faultduraion;
+
+    TRIPVALUEVARIABLE TripValue;
+    TRIPTIMEVARIABLE TripTime;
+ }VOLTAGESET;
+
+1.voltageset.cpp 添加相关代码
+
+2.在在Writetestfunc 中的
+ if(node->value.volset.valid) //有电压测试功能中
+       sprintf(strbuf,"VPNVPP=%d",node->value.volset.Vpn_Vpp);
+       fprintf(fp,"%s\n",strbuf);
+3. Processsection(char *filename)函数中
+else if(sequnence==2&&memcmp(buf,"<TESTITEMBEGIN>",strlen("<TESTITEMBEGIN>"))!=0)
+中添加
+switch(currentfunctype)
+  {
+case 2:
+else if(memcmp(p1,"VPNVPP=",7)==0)
+                {
+                    int i=0;
+                    char Testname[128];
+                    p1=p1+7;
+                    while((*p1!='\0')&&(*p1!=0x0d)&&(*p1!=0x0a))
+                    {
+                        Testname[i]=*p1;
+                        i++;
+                        p1++;
+                    }
+                    Testname[i]='\0';
+                    sectset.volset.Vpn_Vpp=atoi(Testname);
+                }
+
+3.在threap1.cpp中
+
+1.在Writetestfunc 函数中添加
+ sprintf(strbuf,"VPNVPP=%d",node->value.volset.Vpn_Vpp);
+       fprintf(fp,"%s\n",strbuf);
+2. key_test中
+sprintf(tempfile,"./TemplateDir/TemplateVoltage testitem=1 %d %f %d %f %f %f %f",\
+                        VoltageVar.FaultType.value,\
+                        VoltageVar.Faultduraion.value,\
+                        VoltageVar.Vpn_Vpp,\
+                        VoltageVar.TripValue.StartValue.value,\
+                        VoltageVar.TripValue.EndValue.value,\
+                        VoltageVar.TripValue.StepValue.value,\
+                        VoltageVar.TripValue.HoldTime.value);
+                proc=new QProcess;
+
+ sprintf(tempfile,"./TemplateDir/TemplateVoltage testitem=2 %d %f %d %f %f",\
+                        VoltageVar.FaultType.value,\
+                        VoltageVar.Faultduraion.value,\
+                        VoltageVar.Vpn_Vpp,\
+                        VoltageVar.TripTime.EndVaule.value,\
+                        VoltageVar.TripTime.HoldTime.value);
+

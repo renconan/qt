@@ -1,0 +1,144 @@
+2015.2.05 
+增加dfdt稳定性测试
+1. 在variableformart.h中添加 更改
+ typedef struct
+  {
+     bool valid;
+     int  TestType; //测试类型 1 触发时间测试 2 测试dfdt稳定性
+     VARIABLE dfdt; //停止频率
+     VARIABLE stopfreq; //触发时间的停止频率
+     VARIABLE Stability_StartFreq; //稳定性测试 起始频率
+     VARIABLE Stability_EndFreq;   //稳定性测试的终止频率
+     VARIABLE Stability_Duration;  //稳定性测试的持续时间
+     ASSESSORROR assessdfdttriptime;
+     float tripdfdttime;
+  }DFDTTRIPTIMEVARIABLE;
+2.在main函数中
+         更改
+         if(TestItem4==1)
+           {
+               starttest=1;
+               seq_count=4;
+               artExec(fd,"out:dig:on(0x04)",result,0);
+               char outchar[512];
+               if(TestType==1)
+             { sprintf(outchar,"dfdt:%.3f",FreqVar.Tripdfdttime.dfdt.value);
+               fprintf(stdout,outchar);
+               fflush(stdout);
+             }
+             else
+               {
+               sprintf(outchar,"dfdt:%.3f Start Freq:%.3f duration:%0.3f",\
+               FreqVar.Tripdfdttime.dfdt.value,\
+               FreqVar.Tripdfdttime.Stability_StartFreq,\
+               FreqVar.Tripdfdttime.Stability_Duration,\
+               );
+               fprintf(stdout,outchar);
+               fflush(stdout);
+               }
+               OutputSequencer4(fd);
+
+           }
+3.在OutputSequencer4(fd); 函数中
+
+void  OutputSequencer4(int fd)
+{
+    float StartFrepuency;
+    float EndFrepuency;
+    float dt;
+    float ChangeStep;
+    int sumstep;
+
+    if(FreqVar.Tripdfdttime.TestType==1)
+   {
+    StartFrepuency=SystemFrec;
+    EndFrepuency=FreqVar.Tripdfdttime.stopfreq.value;
+    dt=0.005;
+    ChangeStep=FreqVar.Tripdfdttime.dfdt.value*dt;
+
+    if(FreqVar.Tripdfdttime.stopfreq.value<SystemFrec)
+        ChangeStep=-ChangeStep; //频率是下降的
+    change_timedata=dt;
+    }
+    else
+    {
+       StartFrepuency=FreqVar.Tripdfdttime.Stability_StartFreq.value;
+       EndFrepuency=FreqVar.Tripdfdttime.Stability_EndFreq.value;
+       dt=0.005;
+       ChangeStep=FreqVar.Tripdfdttime.dfdt.value*dt;
+       if(StartFrepuency>EndFrepuency)
+       ChangeStep=-ChangeStep; //频率是下降的
+       change_timedata=dt;
+    }
+
+
+  //  artExec(fd,"inp:dig(1):thres(1)",result,0);//打开放大器
+    artExec(fd,"inp:dig:interval(0)",result,0);//送开关量分辨率
+    artExec(fd,"seq:brk",result,0);
+    artExec(fd,"inp:buf:clr",result,0);
+    artExec(fd,"seq:clr",result,0);
+    artExec(fd,"seq:begin",result,0);
+    out_time=0;
+    artExec(fd,"seq:wait(0,1)",result,0);
+
+    channel_input(fd,1,SystemVolt,0,SystemFrec/FreqTriple ,V1DC,1,0,0,0);
+    artExec(fd,"out:ana:v(1:1):on",result,0);
+    channel_input(fd,1,SystemVolt,-120,SystemFrec/FreqTriple,V2DC,2,0,0,0);
+    artExec(fd,"out:ana:v(1:2):on",result,0);
+    channel_input(fd,1,SystemVolt,120,SystemFrec/FreqTriple,V3DC,3,0,0,0);
+    artExec(fd,"out:ana:v(1:3):on",result,0);
+
+    artExec(fd,"inp:buf:sam(bin,1)",result,0);
+    out_time=prefaulttime;
+    artExec(fd,"seq:wait(0,1)",result,0);
+
+
+
+    channel_input(fd,1,SystemVolt,360,StartFrepuency/FreqTriple ,V1DC,1,0,0,ChangeStep/FreqTriple);
+    artExec(fd,"others:ana:v(1:1):rel_phase(0)",result,0);
+    artExec(fd,"others:steptime(1)",result,0);
+    artExec(fd,"out:ana:v(1:1):on",result,0);
+    channel_input(fd,1,SystemVolt,360,StartFrepuency/FreqTriple,V2DC,2,0,0,ChangeStep/FreqTriple);
+     artExec(fd,"others:ana:v(1:2):rel_phase(0)",result,0);
+    artExec(fd,"others:steptime(1)",result,0);
+    artExec(fd,"out:ana:v(1:2):on",result,0);
+    channel_input(fd,1,SystemVolt,360,StartFrepuency/FreqTriple,V3DC,3,0,0,ChangeStep/FreqTriple);
+    artExec(fd,"others:ana:v(1:3):rel_phase(0)",result,0);
+    artExec(fd,"others:steptime(1)",result,0);
+    artExec(fd,"out:ana:v(1:3):on",result,0);
+    if(FreqVar.Tripdfdttime.TestType==1)
+    { sumstep=floor(fabs((StartFrepuency-EndFrepuency)/ChangeStep))+1;
+     out_time=sumstep*change_timedata;
+    }
+    else
+    {
+     out_time=FreqVar.Tripdfdttime.Stability_Duration.value;
+    }
+
+    artExec(fd,"inp:buf:sam(bin,2)",result,0);
+    artExec(fd,"seq:wait(orbin(1),bin(1),bin(1),bin(1),2,1,0,1)",result,0);
+
+    artExec(fd,"inp:buf:sam(bin,3)",result,0);
+    out_time=-1;
+    artExec(fd,"seq:wait(0,2)",result,0);
+
+    //第3步，接点没有动作，终止频率持续3s
+    artExec(fd,"out:ana:v(1:1):off",result,0);
+    artExec(fd,"out:ana:v(1:2):off",result,0);
+    artExec(fd,"out:ana:v(1:3):off",result,0);
+
+    artExec(fd,"inp:buf:sam(bin,4)",result,0);
+    out_time=-1;
+    artExec(fd,"seq:wait(0,1)",result,0);
+    //第4步，接点有动作，关断信号
+    artExec(fd,"inp:buf:sam(bin,5)",result,0);
+    out_time=-1;
+    artExec(fd,"seq:wait(0,1)",result,0);
+    artExec(fd,"seq:end",result,0);
+    artExec(fd,"seq:exec",result,0);
+
+
+
+}
+
+           

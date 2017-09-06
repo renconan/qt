@@ -1,0 +1,2065 @@
+#include <QTime>
+#include <stdio.h>
+#include <stdlib.h>
+#include <QDebug>
+#include <math.h>
+#include <KEY.h>
+#include "Config.h"
+#include <QSemaphore>
+#include "Testcom2.h"
+#include "thread1.h"
+#include "Curseq.h"
+
+QSemaphore semaphore(1);
+TEMPRORARYDATA *temprorarydata;
+
+
+void temprorarydatainit()
+{
+
+    memset(temprorarydata,0,sizeof(temprorarydata));
+    int i=0;
+    {
+    temprorarydata->UartDev[i].valid=1;
+    temprorarydata->UartDev[i].uartfd=0;
+    temprorarydata->UartDev[i].baud=19200;
+    temprorarydata->UartDev[i].datanum=8;
+    temprorarydata->UartDev[i].parity='N';
+    temprorarydata->UartDev[i].stopbit=1;
+    sprintf(temprorarydata->UartDev[i].describ,"/dev/ttyS2");
+    sprintf(temprorarydata->UartDev[i].devname,"/dev/ttyS2");
+    temprorarydata->UartDev[i].rs485Mode=0;
+    }
+    i=1;
+    {
+    temprorarydata->UartDev[i].valid=1;
+    temprorarydata->UartDev[i].uartfd=0;
+    temprorarydata->UartDev[i].baud=9600;
+    temprorarydata->UartDev[i].datanum=8;
+    temprorarydata->UartDev[i].parity='N';
+    temprorarydata->UartDev[i].stopbit=1;
+    sprintf(temprorarydata->UartDev[i].describ,"/dev/ttyS1");
+    sprintf(temprorarydata->UartDev[i].devname,"/dev/ttyS1");
+    temprorarydata->UartDev[i].rs485Mode=0;
+    }
+
+    //串口接收队列
+    for(i=0;i<MAX_UARTDEV_NUM;i++)
+    {
+    temprorarydata->UartRcv[i].readsequence=0;
+    temprorarydata->UartRcv[i].writesequence=0;
+    }
+}
+
+
+void UartsInit()
+{
+    int i;
+    for(i=0;i<MAX_UARTDEV_NUM;i++)
+    {
+     UartInit(i);
+    }
+
+}
+void UartInit(int uartno)
+{
+
+
+  int i;
+  i=uartno;
+ {
+    temprorarydata->UartDev[i].uartfd=-1;
+    if((temprorarydata->UartDev[i].valid=='1')||(temprorarydata->UartDev[i].valid==1))
+    {
+    temprorarydata->UartDev[i].uartfd=OpenDev(temprorarydata->UartDev[i].devname);
+    if(temprorarydata->UartDev[i].uartfd>0)
+    {
+    set_speed(temprorarydata->UartDev[i].uartfd,temprorarydata->UartDev[i].baud);
+    set_Parity(temprorarydata->UartDev[i].uartfd,temprorarydata->UartDev[i].datanum,temprorarydata->UartDev[i].parity,temprorarydata->UartDev[i].stopbit);
+    }
+    }
+
+  }
+}
+
+
+
+
+
+
+
+void delayMS(int ms)
+{
+    QTime n;
+    n=QTime::currentTime();
+    QTime now;
+      do{
+
+            now=QTime::currentTime();
+       }   while (n.msecsTo(now)<=ms);
+}
+
+
+
+
+
+#ifdef ARMLINUX
+int speed_arr[] = {B115200,B38400, B19200, B9600, B4800, B2400, B1200, B300,
+                                B38400, B19200, B9600, B4800, B2400, B1200, B300, };
+int name_arr[] = {115200, 38400,  19200,  9600,  4800,  2400,  1200,  300, 38400,
+                                19200,  9600, 4800, 2400, 1200,  300, };
+#endif
+
+
+void my_itoa( int val,char *buf)
+{
+char *p;
+char *firstdig;
+char temp;
+unsigned digval;
+p = buf;
+
+if (val<0) {
+*p++ = '-';
+val = (unsigned int)(-(int)val);
+}
+
+firstdig = p;
+
+do {
+digval = (unsigned) (val % 10);
+val /= 10;
+
+
+*p++ = (char) (digval + '0');
+} while (val > 0);
+
+
+*p-- = '\0';
+
+do {
+temp = *p;
+*p = *firstdig;
+*firstdig = temp;
+--p;
+++firstdig;
+} while (firstdig < p);
+}
+
+
+
+
+
+
+
+int OpenDev(char *Dev)
+{
+    int fd=0;
+#ifdef ARMLINUX
+    fd = open(Dev, O_RDWR );         //| O_NOCTTY | O_NDELAY
+    if (-1 == fd)
+    {
+    sleep(1);
+    if((fd = open( Dev, O_RDWR|O_NOCTTY|O_NDELAY))==-1)
+    {
+    printf("Can't Open Serial Port,dev:%s\r\n",Dev);
+    }
+    }
+    if(fd>0)
+    tcflush(fd, TCIFLUSH);
+#endif
+    return fd;
+ }
+
+int set_speed(int fd, int speed)
+{
+    #ifdef ARMLINUX
+        int   i;
+        int   status;
+        struct termios   Opt;
+        tcgetattr(fd, &Opt);
+        for ( i= 0;  i < sizeof(speed_arr) / sizeof(int);  i++)
+        {
+        if  (speed == name_arr[i])
+        {
+        tcflush(fd, TCIOFLUSH);
+        cfsetispeed(&Opt, speed_arr[i]);
+        cfsetospeed(&Opt, speed_arr[i]);
+        status = tcsetattr(fd, TCSANOW, &Opt);
+        if  (status != 0)
+        {
+        perror("tcsetattr fd");
+        return -1;
+        }
+        tcflush(fd,TCIOFLUSH);
+        return 1;
+        }
+        }
+        return -1;//设置失败
+#endif
+        return 0;
+}
+int set_Parity(int fd,int databits,char parity,int stopbits)
+{
+    #ifdef ARMLINUX
+    struct termios options;
+    if  ( tcgetattr( fd,&options)  !=  0) {
+    perror("SetupSerial 1");
+    return(0);
+    }
+    options.c_cflag &= ~CSIZE;
+    options.c_iflag &=~(IXON | IXOFF | IXANY);
+    options.c_iflag &=~(INLCR | IGNCR | ICRNL);
+    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    switch (databits) /*?è??????????*/
+    {
+    case 7:
+    options.c_cflag |=   CS7 |  CREAD | CLOCAL;
+    break;
+    case 8:
+    options.c_cflag |=    CS8 |  CREAD | CLOCAL;
+    break;
+    default:
+    fprintf(stderr,"Unsupported data size\n"); return (0);
+    }
+    switch (parity)
+    {
+    case 'n':
+    case 'N':
+    options.c_cflag &= ~PARENB;   /* Clear parity enable */
+    options.c_iflag = IGNPAR;
+    break;
+    case 'o':
+    case 'O':
+
+    options.c_cflag |= (PARODD | PARENB); /* ?è???????§?é*/
+    options.c_iflag |= INPCK;             /* Enable parity checking */
+    break;
+    case 'e':
+    case 'E':
+    options.c_cflag |= PARENB;     /* Enable parity */
+    options.c_cflag &= ~PARODD;   /* ×????????§?é*/
+    options.c_iflag |= INPCK;       /* Enable parity checking */
+    break;
+    case 'M':
+    case 'm':
+    options.c_cflag |= PARENB;
+    options.c_cflag |= CMSPAR;     /*×?????Mark ???é */
+    options.c_iflag &= ~INPCK;     /* Disnable parity checking */
+    break;
+    default:
+    fprintf(stderr,"Unsupported parity\n");
+    return (0);
+    }
+    /* ?è????????*/
+    switch (stopbits)
+    {
+    case 1:
+    options.c_cflag &= ~CSTOPB;
+    break;
+    case 2:
+    options.c_cflag |= CSTOPB;
+    break;
+    default:
+    fprintf(stderr,"Unsupported stop bits\n");
+    return (0);
+    }
+    /* Set input parity option */
+    if (parity != 'n')
+    options.c_iflag |= INPCK;
+    tcflush(fd,TCIFLUSH);
+
+
+    options.c_oflag = 0;
+    options.c_lflag = 0; //non ICANON
+    /*
+    initialize all control characters
+    default values can be found in /usr/include/termios.h, and
+    are given in the comments, but we don't need them here
+    */
+    options.c_cc[VINTR]    = 0;     /* Ctrl-c */
+    options.c_cc[VQUIT]    = 0;     /* Ctrl-\ */
+    options.c_cc[VERASE]   = 0;     /* del */
+    options.c_cc[VKILL]    = 0;     /* @ */
+    options.c_cc[VEOF]     = 4;     /* Ctrl-d */
+    options.c_cc[VTIME]    = 0;     /* inter-character timer, timeout VTIME*0.1 */
+    options.c_cc[VMIN]     = 0;     /* blocking read until VMIN character arrives */
+    options.c_cc[VSWTC]    = 0;     /* '\0' */
+    options.c_cc[VSTART]   = 0;     /* Ctrl-q */
+    options.c_cc[VSTOP]    = 0;     /* Ctrl-s */
+    options.c_cc[VSUSP]    = 0;     /* Ctrl-z */
+    options.c_cc[VEOL]     = 0;     /* '\0' */
+    options.c_cc[VREPRINT] = 0;     /* Ctrl-r */
+    options.c_cc[VDISCARD] = 0;     /* Ctrl-u */
+    options.c_cc[VWERASE]  = 0;     /* Ctrl-w */
+    options.c_cc[VLNEXT]   = 0;     /* Ctrl-v */
+    options.c_cc[VEOL2]    = 0;     /* '\0' */
+
+
+
+    if (tcsetattr(fd,TCSANOW,&options) != 0)
+    {
+    perror("SetupSerial 3");
+    return (0);
+    }
+    #endif
+    return (1);
+}
+
+int UartSend(int fd,char *cmd,int length)
+{
+    int len;
+    if(length==0)
+    len=strlen(cmd);
+    else
+    len=length;
+
+    #ifdef ARMLINUX
+    write(fd,cmd,len);
+    #endif
+
+    return 0;
+}
+int UartFlush(int fd)
+{
+    #ifdef ARMLINUX
+    tcflush(fd, TCIFLUSH);
+    #endif
+    return 0;
+}
+
+void str2STR(char *str)  //命令字符全转大写
+{
+    while(*str)
+    {
+    if(*str>='a' && *str<='z')
+    *str-=0x20;
+    str++;
+    }
+}
+
+
+
+
+
+
+thread1::thread1(QObject *parent) :
+    QThread(parent)
+{
+
+    current_pos=10;
+    starttest_flag=false;
+    temprorarydata=new TEMPRORARYDATA;
+    Timer_updateoff=new QTimer;
+    Timer_updateon=new QTimer;
+    Timer_dspvalue=new QTimer;
+    connect(Timer_updateoff,SIGNAL(timeout()),this,SLOT(updateoff()));  //在未测试状态下 状态更新
+    connect(Timer_updateon,SIGNAL(timeout()),this,SLOT(updateon()));  //在测试状态下，状态更新
+    connect(Timer_dspvalue,SIGNAL(timeout()),this,SLOT(auto_f()));  //在测试状态下，状态更新
+    Timer_updateoff->start(500);
+
+
+}
+
+
+void thread1::DisplayResult(int ReslutSum)
+  {
+       float Temp;
+       switch(ReslutSum)
+      {
+        case 1:                  //显示动作值
+
+            emit SIG_testresult(1,TripValue);
+            break;
+        case 2:
+           emit SIG_testresult(2,ReturnValue);    //显示返回值
+
+           if((TripValue!=-1&&ReturnValue!=-1)&&TestItem2==0)
+             {
+
+               ReturnQuotiety=ReturnValue/TripValue;
+               Temp=ReturnQuotiety*10000;
+               Temp=ceil(Temp);
+               ReturnQuotiety=Temp/10000;                  //将返回系数的限制在小数点后最多只有四位
+               emit SIG_testresult(4,ReturnQuotiety);       //返回系数 换行显示
+             }
+
+          break;
+        case 3://显示动作时间
+
+           if(TestItem1==1&&TestItem2==1)
+             {   //如果测试了动作值、返回值，则动作时间的显示位置如下。
+
+               emit SIG_testresult(3,TripTime);  //动作时间
+
+            if(TripValue!=-1&&ReturnValue!=-1)
+            {
+                  ReturnQuotiety=ReturnValue/TripValue;
+                  Temp=ReturnQuotiety*10000;
+                  Temp=ceil(Temp);
+                  ReturnQuotiety=Temp/10000;           //将返回系数的限制在小数点后最多只有四位
+                  emit  SIG_testresult(4,ReturnQuotiety);    //返回系数
+
+            }
+           }
+
+          else if(TestItem1==1&&TestItem2==0)
+            {       //如果测试了动作值，但没有测试返回值，则动作时间的显示位置如下。
+             emit SIG_testresult(3,TripTime);  //动作时间
+
+            }
+          else if(TestItem1==0&&TestItem2==0)
+            {//如果只测试了动作时间，则动作时间的显示位置如下。
+              emit SIG_testresult(3,TripTime);  //动作时间
+            }
+
+          break;
+      }
+}
+
+
+void thread1::DisplayAutoValue(int fd)
+{
+
+    switch(seq_count)
+          {
+            case 1:
+               ChangeValue=ChangeValue+ActStep;
+              if(ChangeValue>EndCurrent)
+                {
+                  ChangeValue=ChangeValue-ActStep;
+                  starttest=0;
+                  starttest_flag=true;
+                  TripValue=-1;
+                  output_signal_end(fd);
+                  DisplayResult(1);
+
+
+
+         //         auto_UninstallISR(IRQ7);
+                  Timer_dspvalue->stop();
+
+                  auto_count=0;
+                  auto_i=0;
+                  IRQcnt=0;
+                  return;
+                }
+               emit SIG_DisplayChangeValue(true,ChangeValue);
+              break;
+            case 2:
+              ChangeValue=ChangeValue-ReturnStep;
+              if(ChangeValue<0)
+                {
+                  ChangeValue=ChangeValue+ReturnStep;
+                  starttest=0;
+                  starttest_flag=true;
+                  ReturnValue=-1;
+                  output_signal_end(fd);
+
+                  DisplayResult(2);                
+
+             //     auto_UninstallISR( IRQ7 );
+
+                  Timer_dspvalue->stop();
+                  auto_count=0;
+                  auto_i=0;
+                  IRQcnt=0;
+                  return;
+                }
+              emit SIG_DisplayChangeValue(true,ChangeValue);
+              break;
+          }
+
+}
+
+
+void thread1::UpdateAutoValue(int fd)
+{
+
+    if(auto_count==0)
+          {
+            auto_count++;
+            auto_i=0;
+            IRQcnt=0;
+            tice=(long)(StepTime*1000);
+            return;
+          }
+
+        if(auto_count==IRQcnt)
+          {
+
+           IRQcnt=0;
+           auto_count=1;
+
+           DisplayAutoValue(fd);
+
+
+          }
+}
+
+
+void thread1::auto_f()  //INTEL 工控机定时器中断 干什么用
+ {
+   if(auto_i++<tice||starttest==0)
+     {
+
+      return;
+   }
+
+
+   auto_i=0;
+   IRQcnt=1;
+ }
+
+
+void thread1::ReadAutoLogic(int fd)
+{
+    int t4=0;
+        unsigned char signature;
+        static double SequencerTime4;
+        double u,v,w;
+        float VDS,Temp;
+        artExec(fd,"inp:buf:get?",result,15);//从DSP得到开关量接点信息。
+        u=result[7];
+        v=result[8];
+        w=result[9];
+        signature=int(result[13]&0x7f);
+        switch(signature)
+          {
+        case 1:
+          break;
+        case 2:
+          break;
+        case 3:
+          break;
+        case 4:
+          SequencerTime4=gettime(u,v,w);//计算从开始测试到sequencer的Step4的时间。
+          t4=1;
+          break;
+          case 5:
+          break;
+          }
+        if(t4==1)
+          {
+
+            printf("%s    %d seq_count=%",__func__,__LINE__,seq_count);
+
+            switch(seq_count)
+              {
+                case 1:
+                  VDS=floor(SequencerTime4/StepTime);//计算从输出信号到动作时，变化了多少步
+                  TripValue=StartCurrent+ActStep*VDS;
+                  Temp=TripValue*100;
+                  Temp=ceil(Temp);
+                  TripValue=Temp/100;//将动作值的限制在小数点后最多只有两位
+             //    auto_UninstallISR(IRQ7);//关闭定时中断7
+                  Timer_dspvalue->stop();
+
+
+                  starttest=0;
+                  starttest_flag=true;
+                  ChangeValue=TripValue;
+                  ChangeValue=ChangeValue+ChangeValue*0.2;//测试返回值是从动作值的1.2倍开始变
+                  if(ChangeValue>MAX_I_VALUEDATA_AC*3)
+                    ChangeValue=MAX_I_VALUEDATA_AC*3;
+                  TripValue1=ChangeValue;
+                  DisplayResult(1);
+                  printf("%s    %d seq_count=%",__func__,__LINE__,seq_count);
+                  if(TripValue==-1)
+                  {
+                    output_signal_end(fd);//关闭各个放大器
+                    starttest=0; //整个测试结束
+                    starttest_flag=true;
+                    emit SIG_DisplayChangeValue(0,0);
+                 //   led8255(LED_VAR1,1);         //关闭输出指示灯
+                    save_f=1;                    //将保存结果标志置1
+                    break;
+                  }
+
+
+                  if(TestItem2==1)
+                    {                           //要测试返回值
+                      seq_count=2;
+                      emit SIG_DisplayChangeValue(1,ChangeValue);
+                      output_signal_end(fd);
+                      OutputSequencer2(fd);//送测试返回值的sequencer
+                      auto_count=0;
+                      auto_i=0;
+                      IRQcnt=0;
+                 //     auto_InstallISR(IRQ7);//打开中断7
+                       Timer_dspvalue->start(1);
+
+                      starttest=1;
+                      starttest_flag=true;
+
+                    }
+
+                  else if(TestItem2==0&&TestItem3==1)
+                    {  //不测试返回值，但是要测试动作时间
+                      seq_count=3;
+                      output_signal_end(fd);//测试动作时间时要先关闭各个放大器
+                      OutputSequencer3(fd);//送测试动作时间的sequencer
+                      emit SIG_DisplayChangeValue(1,0);
+                      starttest=1;
+                      starttest_flag=true;
+
+                    }
+                  else if(TestItem3==0&&TestItem2==0)
+                    {//不测试返回值，也不测试动作时间
+                      output_signal_end(fd);//关闭各个放大器
+                      starttest=0; //整个测试结束
+                      starttest_flag=true;
+                      emit SIG_DisplayChangeValue(0,0);
+                   //   led8255(LED_VAR1,1);//关闭输出指示灯
+                      save_f=1;//将保存结果标志置1
+                    }
+                  break;
+
+
+                case 2://测试返回值的接点动作处理
+                  VDS=ceil(SequencerTime4/StepTime);//计算从输出信号到动作时，变化了多少步
+                  ReturnValue=TripValue1-ReturnStep*VDS;
+
+                  Temp=ReturnValue*100;
+                  Temp=ceil(Temp);
+                  ReturnValue=Temp/100;//将返回值的限制在小数点后最多只有两位
+                  ChangeValue=ReturnValue;
+                  ChangeValue=ChangeValue-ChangeValue*0.2;
+                  if(ChangeValue<0)
+                    ChangeValue=0;
+                  ReturnValue1=ChangeValue;
+              //    auto_UninstallISR(IRQ7);
+                  Timer_dspvalue->stop();
+                  starttest=0;
+                  starttest_flag=true;
+                  DisplayResult(2);
+                   printf("%s    %d seq_count=%",__func__,__LINE__,seq_count);
+
+                  if(TestItem3==1)
+                    {//要测试动作时间
+                      seq_count=3;
+                      output_signal_end(fd);//测试动作时间时要先关闭各个放大器
+                      OutputSequencer3(fd);//送测试动作时间的sequencer
+
+                      emit SIG_DisplayChangeValue(1,0);
+                      starttest=1;
+                      starttest_flag=true;
+                    }
+                  else if(TestItem3==0)
+                    {//不测试动作时间
+                      output_signal_end(fd);//关闭各个放大器
+                      starttest=0; //整个测试结束
+                      starttest_flag=true;
+                      emit SIG_DisplayChangeValue(0,0);
+                //      led8255(LED_VAR1,1);//关闭输出指示灯
+                      save_f=1;//将保存结果标志置1
+                    }
+                  break;
+              }
+          }
+}
+
+
+int  thread1::Buzzer(char Address1,char Address2,char Address3)
+  {//sys[1]:过载，sys[2]:间歇，sys[3]:闭锁
+    if(sys[1]==1)
+      {//过载信息
+        if((Address1&0x08)!=0x00&&I1Output==1)
+          return 1;//I1过载
+        if((Address1&0x02)!=0x00&&I2Output==1)
+          return 1;//I2过载
+        if((Address2&0x80)!=0x00&&I3Output==1)
+          return 1;//I3过载
+        if((Address2&0x10)!=0x00&&V1Output==1)
+          return 1;//V1过载
+        if((Address2&0x02)!=0x00&&V2Output==1)
+          return 1;//V2过载
+        if((Address3&0x40)!=0x00&&V3Output==1)
+          return 1;//V3过载
+        if((Address3&0x20)!=0x00)
+          return 1;//直流过载
+      }
+    else if(sys[1]==0)
+      {//过载信息
+        if((Address1&0x08)!=0x00&&I1Output==1)
+          return -1;//I1过载
+        if((Address1&0x02)!=0x00&&I2Output==1)
+          return -1;//I2过载
+        if((Address2&0x80)!=0x00&&I3Output==1)
+          return -1;//I3过载
+        if((Address2&0x10)!=0x00&&V1Output==1)
+          return -1;//V1过载
+        if((Address2&0x02)!=0x00&&V2Output==1)
+          return -1;//V2过载
+        if((Address3&0x40)!=0x00&&V3Output==1)
+          return -1;//V3过载
+        if((Address3&0x20)!=0x00)
+          return 1;//直流过载
+      }
+    if(sys[2]==1)
+      {//间歇信息
+        if((Address1&0x10)!=0x00)
+          return 1;//I1间歇
+        if((Address1&0x04)!=0x00)
+          return 1;//I2间歇
+        if((Address1&0x01)!=0x00)
+          return 1;//I3间歇
+        if((Address2&0x08)!=0x00)
+          return 1;//V1间歇
+        if((Address2&0x04)!=0x00)
+          return 1;//V2间歇
+        if((Address3&0x80)!=0x00)
+          return 1;//V3间歇
+      }
+    else if(sys[2]==0)
+      {//间歇信息
+        if((Address1&0x10)!=0x00)
+          return -1;//I1间歇
+        if((Address1&0x04)!=0x00)
+          return -1;//I2间歇
+        if((Address1&0x01)!=0x00)
+          return -1;//I3间歇
+        if((Address2&0x08)!=0x00)
+          return -1;//V1间歇
+        if((Address2&0x04)!=0x00)
+          return -1;//V2间歇
+        if((Address3&0x80)!=0x00)
+          return -1;//V3间歇
+      }
+    if(sys[3]==1)
+      {//闭锁信息
+        if((Address1&0x80)!=0x00)
+          return 1;//I1闭锁
+        if((Address1&0x40)!=0x00)
+          return 1;//I2闭锁
+        if((Address1&0x20)!=0x00)
+          return 1;//I3闭锁
+        if((Address2&0x20)!=0x00)
+          return 1;//V1闭锁
+        if((Address2&0x40)!=0x00)
+          return 1;//V2闭锁
+        if((Address2&0x01)!=0x00)
+          return 1;//V3闭锁
+      }
+    else if(sys[3]==0)
+      {//闭锁信息
+        if((Address1&0x80)!=0x00)
+          return -1;//I1闭锁
+        if((Address1&0x40)!=0x00)
+          return -1;//I2闭锁
+        if((Address1&0x20)!=0x00)
+          return -1;//I3闭锁
+        if((Address2&0x20)!=0x00)
+          return -1;//V1闭锁
+        if((Address2&0x40)!=0x00)
+          return -1;//V2闭锁
+        if((Address2&0x01)!=0x00)
+          return -1;//V3闭锁
+      }
+    return 0;
+  }
+
+void thread1::logic_info(int fd,char info_result1,char info_result2,char info_result3)
+  {
+
+    static int info_count=1;
+    int  k1=0;
+    if(starttest==0)
+    artExec(fd,"out:dig:off(0x80)",result,0);
+    if(starttest==1)
+      {
+        if(Buzzer(info_result1,info_result2,info_result3)==1)  //不需要控件
+          artExec(fd,"out:dig:on(0x80)",result,0);
+        else
+          artExec(fd,"out:dig:off(0x80)",result,0);
+      }
+
+    if(Buzzer(info_result1,info_result2,info_result3)==0) //不需要控件
+      {
+        //运行正常
+          emit SIG_dspstate(0);
+        return;
+      }
+    else if(info_count==1)
+      {
+        if((info_result1&0x08)==0x08&&I1Output==1)
+          {//info_result1是第1路地址的DB9~DB15。
+           emit SIG_dspstate(1);
+            //IA过载
+            k1=1;
+          }
+        if((info_result1&0x40)==0x40)
+          {
+            emit SIG_dspstate(2);
+
+            //IABC 温度保护
+            k1=1;
+          }
+        if((info_result1&0x01)==0x01)
+          {
+            //IC间歇
+              emit SIG_dspstate(3);
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+    else if(info_count==2)
+      {
+        if((info_result1&0x02)==0x02&&I2Output==1)
+          {  //info_result1是第1路地址的DB9~DB15。
+
+              emit SIG_dspstate(4);
+            //IB过载
+            k1=1;
+          }
+        if((info_result1&0x20)==0x20)
+          {//info_result1是第1路地址的DB8~DB15。
+
+              emit SIG_dspstate(5);
+           //IC闭锁
+            k1=1;
+          }
+        if((info_result1&0x10)==0x10)
+          {//info_result1是第1路地址的DB9~DB15。
+              emit SIG_dspstate(6);
+          //IA间歇
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+    else if(info_count==3)
+      {
+        if((info_result2&0x80)==0x80&&I3Output==1)
+          { //info_result2是第2路地址的DB9~DB15。
+           //IC过载
+              emit SIG_dspstate(7);
+            k1=1;
+          }
+        if((info_result1&0x80)==0x80)
+          {//info_result1是第1路地址的DB8~DB15。
+          //IABC 电源保护
+              emit SIG_dspstate(8);
+
+            k1=1;
+          }
+        if((info_result1&0x04)==0x04)
+          {//info_result1是第1路地址的DB9~DB15。
+              emit SIG_dspstate(9);
+          //I2间歇  ?温度保护间歇
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+    else if(info_count==4)
+      {
+        if((info_result2&0x10)==0x10&&V1Output==1)
+          {//info_result2是第2路地址的DB9~DB15。
+           //VA过载
+              emit SIG_dspstate(10);
+
+            k1=1;
+          }
+        if((info_result2&0x40)==0x40)
+          {//info_result2是第2路地址的DB8~DB15。
+              emit SIG_dspstate(11);
+              //V2闭锁
+            //k1=1;    ??
+          }
+        if((info_result3&0x80)==0x80)
+          {//info_result3是第2路地址的DB0~DB7。
+
+              //V3间歇
+              emit SIG_dspstate(12);
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+    else if(info_count==5)
+      {
+        if((info_result2&0x02)==0x02&&V2Output==1)
+          {//info_result2是第2路地址的DB9~DB15。
+            //V2过载
+              emit SIG_dspstate(13);
+            k1=1;
+          }
+        if((info_result2&0x01)==0x01)
+          {//info_result2是第2路地址的DB8~DB15。  //DB8
+           // VABC 温度保护
+            emit SIG_dspstate(14);
+            k1=1;
+          }
+        if((info_result2&0x08)==0x08)
+          {//info_result2是第2路地址的DB9~DB15。
+            emit SIG_dspstate(15);
+           //VA间歇
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+
+    else if(info_count==6)
+      {
+        if((info_result3&0x40)==0x40&&V3Output==1)
+          { //info_result3是第2路地址的DB0~DB7。
+
+             emit SIG_dspstate(16);
+            //VC过载
+            k1=1;
+          }
+        if((info_result2&0x20)==0x20)
+          {//info_result2是第2路地址的DB8~DB15。  //DB13
+            emit SIG_dspstate(17);
+            //VABC电源保护
+            k1=1;
+          }
+        if((info_result2&0x04)==0x04)
+          {//info_result2是第2路地址的DB9~DB15。
+            emit SIG_dspstate(18);
+
+
+          //Vz过载
+
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count++;
+            return;
+          }
+        else
+          info_count++;
+      }
+    else if(info_count==7)
+      {
+        if((info_result3&0x20)==0x20)
+          {//info_result3是第2路地址的DB0~DB7。
+            emit SIG_dspstate(19);
+
+             //直流过载
+            k1=1;
+          }
+        if((info_result2&0x40)==0x40)
+          {//info_result2是第2路地址的DB8~DB15。
+          emit SIG_dspstate(20);
+
+            // VABC 温度保护
+            k1=1;
+          }
+        if((info_result3&0x80)==0x80)
+          {//info_result3是第2路地址的DB0~DB7。
+            emit SIG_dspstate(21);
+           //V3间歇
+            k1=1;
+          }
+        if(k1==1)
+          {
+            info_count=1;
+            return;
+          }
+        else
+          info_count=1;
+      }
+
+  }
+
+
+void thread1::ReadTripTimeLogic(int fd)
+{
+
+        int t2=0,t3=0,t4=0;
+        unsigned char signature;
+        double u,v,w;
+        float  Temp;
+        static double SequencerTime2,SequencerTime4;
+        artExec(fd,"inp:buf:get?",result,15);   //从DSP得到开关量接点信息。
+        u=result[7];
+        v=result[8];
+        w=result[9];
+        signature=int(result[13]&0x7f);
+        switch(signature)
+          {
+                                    case 1:
+                                    SeqStep=0;
+                                      break;
+                                    case 2:
+                                      t2=1;
+                                      SequencerTime2=gettime(u,v,w);//计算从开始测试到sequencer的Step2的时间。
+                                      break;
+                                    case 3:
+                                      t3=1;
+                                      break;
+                                    case 4:
+                                      t4=1;
+                                      SequencerTime4=gettime(u,v,w);//计算从开始测试到sequencer的Step4的时间。
+                                      break;
+                                    case 5:
+                                      break;
+          }
+
+        if(t2==1&&SeqStep==0)
+          {
+            SeqStep=1;
+
+             emit SIG_DisplayChangeValue(1,TripValue1);
+
+          }
+        if(t3==1)
+          {//未动作
+            TripTime=-1;
+            output_signal_end(fd);//关闭各个放大器
+            DisplayResult(3);//显示测试结果
+            printf("%s    %d seq_count=%",__func__,__LINE__,seq_count);
+            starttest=0;
+            starttest_flag=true;
+            emit SIG_DisplayChangeValue(0,0);
+       //     led8255(LED_VAR1,1);//关闭输出指示灯
+            save_f=1;//将保存结果标志置1
+          }
+        if(t4==1)
+          {  //保护动作
+             if(StepTime>=1) //计算动作时间，要将开关量分辨率的时间减去，LogicResolution为ms
+             TripTime=SequencerTime4-StepTime*2-LogicResolution/1000;
+             //如果StepTime>=1，sequencer的Step1输出时间为StepTime*2秒
+             else //如果StepTime<1，sequencer的Step1输出时间为2秒
+             TripTime=SequencerTime4-2-LogicResolution/1000;
+             Temp=TripTime*1000;
+             Temp=ceil(Temp);
+             TripTime=Temp/1000;//将动作时间的限制在小数点后最多只有三位
+             output_signal_end(fd);//关闭各个放大器
+             DisplayResult(3);//显示测试结果
+             printf("%s    %d seq_count=%",__func__,__LINE__,seq_count);
+          //   auto_UninstallISR(IRQ7);
+             Timer_dspvalue->stop();
+             starttest=0;
+             starttest_flag=true;
+             emit SIG_DisplayChangeValue(0,0);//测试结束，将输出值的显示区域清空。
+         //    led8255(LED_VAR1,1);//关闭输出指示灯
+             save_f=1;//将保存结果标志置1
+          }
+
+}
+
+
+void thread1::updateoff()
+{
+    semaphore.acquire();
+    unsigned char info_flag1,info_flag2,info_flag3;
+    artExec(temprorarydata->UartDev[0].uartfd,"inp:dig(0):get?",result,11);     //不需要更改
+    info_flag1=result[8];
+    artExec(temprorarydata->UartDev[0].uartfd,"inp:dig(1):get?",result,11);
+    info_flag2=result[8];
+    info_flag3=result[9];
+    logic_info(temprorarydata->UartDev[0].uartfd,info_flag1,info_flag2,info_flag3);  //需要emit
+    semaphore.release();
+
+}
+
+
+void thread1::updateon()
+{    unsigned char info_flag1,info_flag2,info_flag3;
+     semaphore.acquire();
+     if((TestItem1==1&&seq_count==1)||(TestItem2==1&&seq_count==2))
+     { //在测试动作值、返回值时读开关量状态、改变显示值
+
+        Timer_dspvalue->start(1);
+        UpdateAutoValue(temprorarydata->UartDev[0].uartfd);  //改变显示值
+        ReadAutoLogic(temprorarydata->UartDev[0].uartfd); //读开关量状态
+        if(starttest==0)
+         //    led8255(LED_VAR1,1);//关闭输出指示灯
+                  ;
+
+     }
+
+     else if(TestItem3==1&&seq_count==3)
+     ReadTripTimeLogic(temprorarydata->UartDev[0].uartfd);  //在测试动作时间时读开关量状态、
+
+
+     artExec(temprorarydata->UartDev[0].uartfd,"inp:dig(0):get?",result,11);     //不需要更改
+     info_flag1=result[8];
+     artExec(temprorarydata->UartDev[0].uartfd,"inp:dig(1):get?",result,11);
+     info_flag2=result[8];
+     info_flag3=result[9];
+     logic_info(temprorarydata->UartDev[0].uartfd,info_flag1,info_flag2,info_flag3);  //需要emit
+     semaphore.release();
+
+}
+
+
+
+void thread1::SaveReport()
+{
+        FILE *fp,*bkp;
+        char strbuf[80],str[80],str1[80],str2[80];
+        int i,report_num;
+        int day,mon,year;
+        int hour,minute,second,hsecond;
+     
+        str[0]='\0';
+        remove("report1.txt");
+        rename("report.txt","report1.txt"); //文件重命名
+
+
+        printf("%s  %d",__func__,__LINE__);
+
+        fp=fopen("report.txt","w");
+        if(fp==NULL)
+          return;
+        if((bkp=fopen("report1.txt","r"))==NULL)
+          return;
+        printf("%s  %d",__func__,__LINE__);
+        fgets(str1,80,bkp);  //读出测试结果文件的第一行，测试结果文件的最新保存日期
+         QDateTime date;
+
+
+         day=QDate::currentDate().day();
+         mon=QDate::currentDate().month();
+         year=QDate::currentDate().year();
+        strcpy( strbuf, "DATE: " );//DATA：
+        my_itoa( mon, str);
+        strcat( strbuf, str );//DATA：****
+        strcat( strbuf, "/" );//DATA：****年
+        my_itoa( day, str);
+        if( strlen(str)<2 )
+          strcat( strbuf, "0" );
+        strcat( strbuf, str );
+        strcat( strbuf, "/" );//DATA：****年**月
+        my_itoa( year, str);
+        if( strlen(str)<2 )
+          strcat( strbuf, "0" );
+        strcat( strbuf, str );
+        strcat(strbuf,"");//DATA：****年**月**日
+        fprintf(fp,"%s\n",strbuf);
+        if(strncmp(strbuf,str1,20)==0)
+          {//比较当前测试结果文件的最新日期和当前测试的日期一致。
+            fgets(str,80,bkp);//读出测试结果文件的保存 间
+            fgets(str,80,bkp);//读出测试结果文件的报告编号。
+            for(i=0;i<3;i++)
+            str2[i]=str[i+6];
+            str2[i]='\0';
+            report_num=atoi(str2);
+            report_num++;//报告编号加1
+          }
+         else //比较当前测试结果文件的最新日期和当前测试的日期不一致。
+          report_num=1;//表示当前日期第一个报告
+
+
+
+        hour=QTime::currentTime().hour();
+        minute=QTime::currentTime().minute();
+        second=QTime::currentTime().second();
+
+        strcpy( strbuf, "Time: " );//Time：
+        my_itoa( hour, str);
+        strcat(strbuf,str);//Time：**
+        strcat(strbuf, ":" );//Time：**:
+        my_itoa(minute, str);
+        strcat( strbuf, str);
+        strcat( strbuf, ":" );//Time：**:**:
+
+        my_itoa( second, str);
+        strcat( strbuf, str );//Time：**:**:**
+        fprintf(fp,"%s\n",strbuf);
+        fclose(bkp);
+
+        strcpy( strbuf, "SN: " );
+        my_itoa( report_num, str);
+        strcat( strbuf, str );
+        fprintf(fp,"%s\n",strbuf);
+
+        strcpy(strbuf,"Current test result");
+        fprintf(fp,"%s\n",strbuf);
+
+        if(TestItem1==1)
+          {
+            strcpy(strbuf,"Trip value(A):");
+            fprintf(fp,"%s",strbuf);
+            if(TripValue==-1)
+              strcpy(strbuf,"NoTrip");
+            else
+              gcvt(TripValue ,7,strbuf);
+            fprintf(fp," %s\n",strbuf);
+          }
+
+        if(TestItem2==1)
+          {
+            strcpy(strbuf,"Return value(A):");
+            fprintf(fp,"%s",strbuf);
+            if(ReturnValue==-1)
+              strcpy(strbuf,"No Trip");
+            else
+              gcvt(ReturnValue ,7,strbuf);
+            fprintf(fp," %s\n",strbuf);
+          }
+
+        if(TestItem3==1)
+          {
+            strcpy(strbuf,"Trip time(s):");
+            fprintf(fp,"%s",strbuf);
+            if(TripTime==-1)
+              strcpy(strbuf,"No trip");
+            else
+              gcvt(TripTime ,7,strbuf);
+            fprintf(fp," %s\n",strbuf);
+          }
+
+        if(TestItem2==1&&TestItem1==1&&TripValue!=-1&&ReturnValue!=-1)
+          {
+            strcpy(strbuf,"Return coeff:");
+            fprintf(fp,"%s",strbuf);
+
+            gcvt(ReturnQuotiety,7,strbuf);//将返回系数转化为字符串
+            fprintf(fp," %s\n",strbuf);
+          }
+         fprintf(fp,"%s\n"," ");
+         if((bkp=fopen("report1.txt","r"))==NULL)
+           return;
+         for(i=0;i<5000;i++)
+           {
+             if(feof(bkp))
+               break;
+             fgets(str,80,bkp);
+             str[79]='\0';
+             fprintf(fp,"%s",str);
+           }
+         fclose(fp);
+         fclose(bkp);
+         printf("%s  %d",__func__,__LINE__);
+}
+
+//处理旋转按钮的粗条 和细条
+
+void thread1::key_deal_rotate_key(KEY key,int &position)
+ {
+
+      switch(position)
+     {
+     case 1:
+         if(input_par==0)  //没有处于编辑状态
+         {
+
+             switch(key)
+             {
+             case  _coarse_left:
+             case  _fine_left:
+
+
+                    position=16;  //获得焦点
+                    break;
+             case  _coarse_right:
+             case  _fine_right:
+                   position=2;  //获得焦点
+                   break;
+             default:break;
+             }
+         }
+
+         else   //如果处于编辑状态 则粗调进行累加
+         {
+            switch(key)
+           {
+            case  _coarse_left: StartCurrent=StartCurrent+CurCoarseStep; break;
+            case  _fine_left:   StartCurrent=StartCurrent+CurCoarseStep/coarse_fine_devision; break;
+
+            case  _coarse_right: StartCurrent=StartCurrent-CurCoarseStep; break;
+            case  _fine_right:   StartCurrent=StartCurrent-CurCoarseStep/coarse_fine_devision; break;
+            default:break;
+           }
+
+
+         }
+         break;
+
+      case 2:
+          if(input_par==0)  //没有处于编辑状态
+          {
+
+              switch(key)
+              {
+              case  _coarse_left:
+              case  _fine_left:
+
+
+                     position=1;  //获得焦点
+                     break;
+              case  _coarse_right:
+              case  _fine_right:
+                    position=3;  //获得焦点
+                    break;
+              default:break;
+              }
+          }
+
+          else   //如果处于编辑状态 则粗调进行累加
+          {
+             switch(key)
+            {
+             case  _coarse_left: EndCurrent=EndCurrent+CurCoarseStep; break;
+             case  _fine_left:   EndCurrent=EndCurrent+CurCoarseStep/coarse_fine_devision; break;
+
+             case  _coarse_right: EndCurrent=EndCurrent-CurCoarseStep; break;
+             case  _fine_right:   EndCurrent=EndCurrent-CurCoarseStep/coarse_fine_devision; break;
+             default:break;
+            }
+
+
+          }
+          break;
+
+
+      case 3:
+          if(input_par==0)  //没有处于编辑状态
+          {
+
+              switch(key)
+              {
+              case  _coarse_left:
+              case  _fine_left:
+
+
+                     position=2;  //获得焦点
+                     break;
+              case  _coarse_right:
+              case  _fine_right:
+                    position=4;  //获得焦点
+                    break;
+              default:break;
+              }
+          }
+
+          else   //如果处于编辑状态 则粗调进行累加
+          {
+             switch(key)
+            {
+             case  _coarse_left:
+             case  _fine_left:
+                 CurCoarseStep=CurCoarseStep+0.1;
+                 break;
+             case  _coarse_right:
+             case  _fine_right:
+                 CurCoarseStep=CurCoarseStep-0.1;
+                 break;
+             default:break;
+            }
+          }
+          break;
+
+
+      case 4:
+          if(input_par==0)  //没有处于编辑状态
+          {
+
+              switch(key)
+              {
+              case  _coarse_left:
+              case  _fine_left:
+
+
+                     position=3;  //获得焦点
+                     break;
+              case  _coarse_right:
+              case  _fine_right:
+                    position=5;  //获得焦点
+                    break;
+              default:break;
+              }
+          }
+
+          else   //如果处于编辑状态 则粗调进行累加
+          {
+             switch(key)
+            {
+
+              case  _coarse_left:      ActStep=ActStep+CurCoarseStep; break;
+              case  _fine_left:        ActStep=ActStep+CurCoarseStep/coarse_fine_devision; break;
+              case  _coarse_right:     ActStep=ActStep-CurCoarseStep; break;
+              case  _fine_right:       ActStep=ActStep-CurCoarseStep/coarse_fine_devision; break;
+             default:break;
+            }
+          }
+          break;
+
+
+
+      case 5:
+          if(input_par==0)  //没有处于编辑状态
+          {
+
+              switch(key)
+              {
+              case  _coarse_left:
+              case  _fine_left:
+                     position=4;
+                     break;
+              case  _coarse_right:
+              case  _fine_right:
+                     position=6;  //获得焦点
+                    break;
+              default:break;
+              }
+          }
+
+          else   //如果处于编辑状态 则粗调进行累加
+          {
+             switch(key)
+            {
+             case  _coarse_left:    StepTime=StepTime+1;break;
+             case  _fine_left:      StepTime=StepTime+0.1; break;
+             case  _coarse_right:   StepTime=StepTime-1;break;
+             case  _fine_right:     StepTime=StepTime-0.1;break;
+             default:break;
+            }
+          }
+          break;
+
+
+
+      case 6:
+          if(input_par==0)  //没有处于编辑状态
+          {
+
+              switch(key)
+              {
+              case  _coarse_left:
+              case  _fine_left:
+                   position=5;  //获得焦点
+                     break;
+              case  _coarse_right:
+              case  _fine_right:
+                    position=7;  //获得焦点
+                    break;
+              default:break;
+              }
+          }
+
+          else   //如果处于编辑状态 则粗调进行累加
+          {
+             switch(key)
+            {
+             case  _coarse_left:
+             case  _fine_left:
+                 coarse_fine_devision+=10; break;
+             case  _coarse_right:
+             case  _fine_right:
+                  coarse_fine_devision-=10; break;
+             default:break;
+            }
+          }
+          break;
+
+
+
+      case 7:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=6;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=8;
+
+                       break;
+           default:break;
+        }
+         break;
+
+      case 8:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=7;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=9;
+
+                       break;
+           default:break;
+        }
+         break;
+
+
+      case 9:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=8;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=10;
+
+                       break;
+           default:break;
+        }
+         break;
+
+
+      case 10:
+         switch(key)
+         { case  _coarse_left:
+
+           case  _fine_left:
+                       position=9;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=11;
+
+                       break;
+           default:break;
+        }
+         break;
+
+      case 11:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=10;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=12;
+
+                       break;
+           default:break;
+        }
+         break;
+
+      case 12:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=11;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=13;
+
+                       break;
+           default:break;
+        }
+         break;
+
+      case 13:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=12;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=14;
+
+                       break;
+           default:break;
+        }
+         break;
+
+
+      case 14:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=13;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=15;
+
+                       break;
+           default:break;
+        }
+         break;
+
+
+      case 15:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=14;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=16;
+
+                       break;
+           default:break;
+        }
+         break;
+
+
+
+      case 16:
+         switch(key)
+         { case  _coarse_left:
+           case  _fine_left:
+                       position=15;
+
+                       break;
+           case  _coarse_right:
+           case  _fine_right:
+                       position=1;
+
+                       break;
+           default:break;
+        }
+       break;
+
+  }
+  }
+
+
+void thread1::vi_parameter_enter(int position)
+{
+    INPAR=0;
+
+    switch(position)
+    {
+    case 1:
+      if(StartCurrent>MAX_I_VALUEDATA_AC*3)
+        StartCurrent=MAX_I_VALUEDATA_AC*3;
+      else if(StartCurrent<0)
+        StartCurrent=0;//参数限制
+
+      if(StartCurrent>EndCurrent-1)
+        StartCurrent=EndCurrent-1;
+      break;
+   case 2:
+      if(EndCurrent>MAX_I_VALUEDATA_AC*3)
+        EndCurrent=MAX_I_VALUEDATA_AC*3;
+      else if(EndCurrent<0)
+        EndCurrent=0;//参数限制
+      if(EndCurrent<StartCurrent+1)
+        EndCurrent=StartCurrent+1;
+      break;
+    case 3:  // 时间定值
+        if(CurCoarseStep>999)
+            CurCoarseStep=999;
+        if(CurCoarseStep<0)
+            CurCoarseStep=0;
+           break;
+
+    case 4:
+            if(ActStep>10)
+              ActStep=10;
+            else if(ActStep<0)
+              ActStep=0;
+            break;
+    case 5:
+            if(StepTime>999.99)
+              StepTime=999.99;
+            else if(StepTime<0)
+              StepTime=0;
+            break;
+   case 6:
+         if(coarse_fine_devision>100)
+            coarse_fine_devision=100;
+         else if(coarse_fine_devision<0)
+         coarse_fine_devision=10;
+         break;
+}
+}
+
+
+void thread1::key_deal_enter_current(int &position)
+ {
+     switch(position)
+     {
+          case 1:
+          case 2:
+          case 3:
+          case 4:
+          case 5:
+          case 6:
+           if(input_par==0)
+              {
+
+              input_par=1;  //input_par置1表示参数处于编辑状态，但它是按步长变化的。
+              emit SIG_editstate(true,position);
+              }
+           else if(input_par==1)
+              {
+              vi_parameter_enter(position);//调用参数更新函数
+              input_par=0;
+              emit SIG_displaydataandstate(position);
+              emit SIG_editstate(false,position);
+              // emit 发送信号让其处于未编辑状态
+              }
+           break;
+
+
+     case 7:
+           //发送选不选中
+             if(TestItem1==1)
+              {
+               TestItem1=0;
+               if(TestItem2==1)
+                 {
+                 TestItem2=0;
+                 }
+              }
+               else{
+                     TestItem1=1;
+                    }
+             emit SIG_displaydataandstate(position);
+                break;
+     case 8:
+             if(TestItem2==1)
+             {
+
+               TestItem2=0;
+             }
+             else
+             {
+               TestItem2=1;
+               TestItem1=1;
+             }
+            emit SIG_displaydataandstate(position);
+             break;
+     case 9:
+           TestItem3=!TestItem3;
+           emit SIG_displaydataandstate(position);
+           break;
+
+
+     case 10:
+         if(OutputMode!=1)
+         {
+           OutputMode=1;
+           emit SIG_displaydataandstate(position);
+          }
+         break;
+
+     case 11:
+         if(OutputMode!=2)
+         {
+           OutputMode=2;
+           emit SIG_displaydataandstate(position);
+          }
+         break;
+
+
+     case 12:
+         if(OutputMode!=3)
+         {
+           OutputMode=3;
+           emit SIG_displaydataandstate(position);
+          }
+         break;
+
+     case 13:
+         if(OutputMode!=4)
+         {
+           OutputMode=4;
+           emit SIG_displaydataandstate(position);
+          }
+         break;
+
+
+
+     case 14:       if(starttest==0)
+                   {
+                    emit SIG_helpintershow();
+                    HelpFlag=1;
+                   }
+                   break;
+    case 15:
+
+        if(save_f==1)
+          {
+      //    auto_UninstallISR(IRQ7);//关闭定 中断7
+            Timer_dspvalue->stop();
+
+            printf("%s  %d",__func__,__LINE__);
+            save_f=0;
+            emit SIG_savereport(1);
+            SaveReport();
+            emit SIG_savereport(2);
+            emit SIG_savereport(0);
+          }
+           break;
+    case 16:
+              emit SIG_appclose();
+              break;
+     }
+
+ }
+
+
+void thread1::key_deal_test_current(int fd)
+{
+
+       char info_flag1,info_flag2,info_flag3;
+       ReturnStep=ActStep;
+       if(starttest==0&&input_par==0)
+         {
+           artExec(fd,"out:dig:off(0x08)",result,0);
+      //     led8255(LED_VAR1,0);
+           emit SIG_testresult(0,0);  //清空测试结果区域
+           starttest=1;
+           starttest_flag=true;
+           V1Output=0;
+           V2Output=0;
+           V3Output=0;
+           I1Output=0;
+           I2Output=0;
+           I3Output=0;
+           switch(OutputMode)
+             {
+               case 1:
+                  I1Output=1;
+                   break;
+               case 2:
+                  I2Output=1;
+                   break;
+               case 3:
+                  I3Output=1;
+                   break;
+               case 4:
+                  I1Output=1;
+                  I2Output=1;
+                  I3Output=1;
+                   break;
+              }
+
+           artExec(fd,"out:dig:on(0x08)",result,0);
+
+           if(TestItem1==1)
+             { //要测试Trip value
+               seq_count=1;
+               ChangeValue=StartCurrent;
+               OutputSequencer1(fd);//输出测试Trip value的sequencer
+               auto_count=0;
+               auto_i=0;
+               IRQcnt=0;    //自动变化相关的变量置0
+               emit  SIG_DisplayChangeValue(1,ChangeValue);
+             }
+
+           else if(TestItem1==0&&TestItem3==1)
+             {//只测试动作 间
+               TripValue1=StartCurrent;  //07-11-19 10:33在不做Trip value和动作 间，输出值为初值
+               seq_count=3;
+               OutputSequencer3(fd);//输出测试动作 间的sequencer
+               emit  SIG_DisplayChangeValue(1,0);
+             }
+         }
+
+
+}
+
+
+
+void thread1::key_deal_stop_current(int fd)
+{
+    if(starttest==1)
+         {
+
+       //    auto_UninstallISR( IRQ7 ); //关闭中断7
+           Timer_dspvalue->stop();
+           output_signal_end(fd);
+           auto_count=0;
+           auto_i=0;
+           IRQcnt=0;
+           starttest=0;
+           starttest_flag=true;
+          emit SIG_DisplayChangeValue(0,0); //输出值区域清0
+         }
+}
+
+
+
+void thread1::key_response(KEY key,int  &position)
+{
+
+    if(key==_NOP)   return;
+    if(key==_coarse_left||key==_coarse_right||key==_fine_left||key==_fine_right)
+    {
+        if(starttest==0)           //如果没有进行测试，那么左右移动是进行数字改变或者是焦点变化
+       {
+            key_deal_rotate_key(key,current_pos); //焦点变化
+            if(input_par==1)     //编辑状态 显示其值
+           {
+            emit SIG_displaydataandstate(current_pos);
+           }
+          else  //未处于编辑状态 焦点移动
+          {
+            emit SIG_sendfocuspos(current_pos);
+           }
+      }
+     return;
+    }
+
+
+
+
+if(key==_enter)
+{
+    if(starttest==0)   //如果正在测试，按下enter键没有作用
+   {
+      if(HelpFlag==0)  //当帮助界面没有显示时 进行enter键处理
+      key_deal_enter_current(current_pos);
+      else {
+      emit SIG_helpinterclose(); //如果正在显示 帮助界面 enter键是关闭帮助界面
+      HelpFlag=0;
+           }
+    }
+}
+else if(key==_TEST)
+{
+     printf("%s   %d  _TEST\n",__func__,__LINE__);
+     if(input_par==1)
+     {
+         vi_parameter_enter(current_pos);//调用参数更新函数
+         input_par=0;
+         emit SIG_displaydataandstate(current_pos);
+         emit SIG_editstate(false,current_pos);
+     }
+
+     if(starttest==0)
+     {
+        output_signal_end(temprorarydata->UartDev[0].uartfd);
+        key_deal_test_current(temprorarydata->UartDev[0].uartfd);
+
+     }
+
+}
+
+else if(key==_STOP)
+{
+   key_deal_stop_current(temprorarydata->UartDev[0].uartfd);
+
+
+
+}
+
+
+}
+
+
+void thread1::run()
+{
+    KEY key;
+  //打开并配置串口
+    unsigned char tx[10]={0,1,2,3,4,5,6,7,8,10};
+
+  temprorarydatainit();
+  UartsInit();
+  printf("%s   %d  fd1= %d fd2= %d\n",__func__,__LINE__,temprorarydata->UartDev[0].uartfd,temprorarydata->UartDev[1].uartfd );
+  printf("%s  %d\n",__func__,__LINE__);
+
+
+
+  //online(temprorarydata->UartDev[0].uartfd);
+  printf("%s  %d\n",__func__,__LINE__);
+
+  read_max(temprorarydata->UartDev[0].uartfd);
+  artExec(temprorarydata->UartDev[0].uartfd,"sys:cfg?",result,31);
+
+   printf("%s    %d  result[7]=%x\n",__func__,__LINE__,result[7]);
+  if((result[7]&0xf0)==0x80)
+        { //125V电压板
+          MAX_V_VALUEDATA_AC=125;
+          MIN_V_VALUEDATA_AC=0;
+          MAX_V_VALUEDATA_DC=176;
+          MIN_V_VALUEDATA_DC=-176;
+        }
+      else if((result[7]&0xf0)==0x00)
+        { //75V电压板
+          MAX_V_VALUEDATA_AC=75;
+          MIN_V_VALUEDATA_AC=0;
+          MAX_V_VALUEDATA_DC=110;
+          MIN_V_VALUEDATA_DC=-110;
+        }
+      if((result[7]&0x0f)==0x01)
+        { //30A电流板
+          MAX_I_VALUEDATA_AC=30;
+          MIN_I_VALUEDATA_AC=0;
+          MAX_I_VALUEDATA_DC=42;
+          MIN_I_VALUEDATA_DC=-42;
+        }
+      else if((result[7]&0x0f)==0x08)
+        { //40A电流板
+          MAX_I_VALUEDATA_AC=40;
+          MIN_I_VALUEDATA_AC=0;
+          MAX_I_VALUEDATA_DC=56;
+          MIN_I_VALUEDATA_DC=-56;
+        }
+      else if((result[7]&0x0f)==0x05)
+        { //50A电流板
+          MAX_I_VALUEDATA_AC=50;
+          MIN_I_VALUEDATA_AC=0;
+          MAX_I_VALUEDATA_DC=70;
+          MIN_I_VALUEDATA_DC=-70;
+        }
+
+     printf("%s  %d\n",__func__,__LINE__);
+
+      while(1){
+     key=GetKey(temprorarydata->UartDev[1].uartfd);
+     semaphore.acquire();
+     key_response(key,current_pos);
+     semaphore.release();
+     if(starttest_flag==true)
+     {
+         starttest_flag=false;
+         if(starttest==1)
+         {
+             Timer_updateon->start(200);
+             Timer_updateoff->stop();
+         }
+         else
+         { Timer_updateoff->start(500);
+           Timer_updateon->stop();
+         }
+
+
+     }
+
+
+
+
+
+ }
+}
+
+
